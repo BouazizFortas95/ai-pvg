@@ -102,4 +102,9 @@ class News extends Model
     {
         return $this->source();
     }
+
+    public function videoScripts(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(VideoScript::class);
+    }
 }

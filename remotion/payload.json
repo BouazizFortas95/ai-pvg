@@ -1,0 +1,1 @@
+{"title":"Test News","language":"en","target_duration":5,"scenes":[{"order":1,"type":"intro","duration":2,"headline":"Intro","description":"Desc","narration":"Intro text","visual_keywords":["news"]},{"order":2,"type":"conclusion","duration":3,"headline":"Outro","description":"Outro desc","narration":"Outro text","visual_keywords":["news"]}]}
