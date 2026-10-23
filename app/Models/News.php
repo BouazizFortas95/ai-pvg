@@ -3,9 +3,9 @@
 namespace App\Models;
 
 use App\Enums\NewsStatus;
-use Database\Factories\NewsFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class News extends Model
 {
@@ -45,6 +45,10 @@ class News extends Model
         'category',
         'status',
         'published_at',
+        'news_category_id',
+        'news_source_id',
+        'normalized_source_url',
+        'normalized_title',
     ];
 
     /**
@@ -58,5 +62,44 @@ class News extends Model
             'status' => NewsStatus::class,
             'published_at' => 'datetime',
         ];
+    }
+
+    /**
+     * The structured category this article belongs to.
+     */
+    public function category(): BelongsTo
+    {
+        return $this->belongsTo(NewsCategory::class, 'news_category_id');
+    }
+
+    /**
+     * The structured source this article was imported from.
+     */
+    public function source(): BelongsTo
+    {
+        return $this->belongsTo(NewsSource::class, 'news_source_id');
+    }
+
+    /**
+     * Filament-bound alias of the `category` relation, named after the
+     * real foreign key.
+     *
+     * Filament resolves relationship names with `hasAttribute()` before
+     * `isRelation()`, so the legacy `category` string column would make
+     * relationship selects and filters resolve to null. The alias has
+     * no column conflict and behaves identically.
+     */
+    public function newsCategory(): BelongsTo
+    {
+        return $this->category();
+    }
+
+    /**
+     * Filament-bound alias of the `source` relation, named after the
+     * real foreign key for symmetry.
+     */
+    public function newsSource(): BelongsTo
+    {
+        return $this->source();
     }
 }

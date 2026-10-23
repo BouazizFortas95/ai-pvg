@@ -8,6 +8,8 @@ use App\Filament\Resources\News\Pages\CreateNews;
 use App\Filament\Resources\News\Pages\EditNews;
 use App\Filament\Resources\News\Pages\ListNews;
 use App\Models\News;
+use App\Models\NewsCategory;
+use App\Models\NewsSource;
 use App\Models\User;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -23,7 +25,7 @@ class NewsFilamentResourceTest extends TestCase
     {
         parent::setUp();
 
-        $this->actingAs(User::factory()->create());
+        $this->actingAs(User::factory()->admin()->create());
     }
 
     public function test_resource_is_registered_in_the_panel(): void
@@ -63,7 +65,8 @@ class NewsFilamentResourceTest extends TestCase
         Livewire::test(CreateNews::class)
             ->assertFormFieldExists('title')
             ->assertFormFieldExists('slug')
-            ->assertFormFieldExists('category')
+            ->assertFormFieldExists('news_category_id')
+            ->assertFormFieldExists('news_source_id')
             ->assertFormFieldExists('status')
             ->assertFormFieldExists('summary')
             ->assertFormFieldExists('content')
@@ -108,11 +111,15 @@ class NewsFilamentResourceTest extends TestCase
     {
         Storage::fake('public');
 
+        $category = NewsCategory::factory()->create();
+        $source = NewsSource::factory()->create();
+
         Livewire::test(CreateNews::class)
             ->fillForm([
                 'title' => 'Breaking: Filament 5 works great',
                 'slug' => 'breaking-filament-5-works-great',
-                'category' => 'technology',
+                'news_category_id' => $category->getKey(),
+                'news_source_id' => $source->getKey(),
                 'status' => 'ready',
                 'summary' => 'A quick summary.',
                 'content' => '<p>Full article body.</p>',
@@ -126,7 +133,8 @@ class NewsFilamentResourceTest extends TestCase
         $this->assertDatabaseHas('news', [
             'title' => 'Breaking: Filament 5 works great',
             'slug' => 'breaking-filament-5-works-great',
-            'category' => 'technology',
+            'news_category_id' => $category->getKey(),
+            'news_source_id' => $source->getKey(),
             'status' => 'ready',
             'source_name' => 'AI-PVG Blog',
             'source_url' => 'https://example.com/article',
@@ -135,6 +143,8 @@ class NewsFilamentResourceTest extends TestCase
 
     public function test_news_can_be_edited_through_the_form(): void
     {
+        $category = NewsCategory::factory()->create();
+
         $news = News::factory()->create([
             'title' => 'Before edit',
             'status' => 'draft',
@@ -144,6 +154,7 @@ class NewsFilamentResourceTest extends TestCase
             ->fillForm([
                 'title' => 'After edit',
                 'slug' => 'after-edit',
+                'news_category_id' => $category->getKey(),
                 'status' => 'ready',
             ])
             ->call('save')
@@ -153,6 +164,7 @@ class NewsFilamentResourceTest extends TestCase
             'id' => $news->getKey(),
             'title' => 'After edit',
             'slug' => 'after-edit',
+            'news_category_id' => $category->getKey(),
             'status' => 'ready',
         ]);
     }
@@ -293,18 +305,22 @@ class NewsFilamentResourceTest extends TestCase
 
     public function test_table_can_filter_by_category(): void
     {
-        $technology = News::factory()->create([
-            'category' => 'technology',
+        $category = NewsCategory::factory()->create([
+            'name' => 'Technology',
         ]);
 
-        $business = News::factory()->create([
-            'category' => 'business',
+        $otherCategory = NewsCategory::factory()->create([
+            'name' => 'Business',
         ]);
+
+        $matching = News::factory()->for($category, 'category')->create();
+
+        $other = News::factory()->for($otherCategory, 'category')->create();
 
         Livewire::test(ListNews::class)
-            ->filterTable('category', 'technology')
-            ->assertCanSeeTableRecords([$technology])
-            ->assertCanNotSeeTableRecords([$business]);
+            ->filterTable('newsCategory', $category->getKey())
+            ->assertCanSeeTableRecords([$matching])
+            ->assertCanNotSeeTableRecords([$other]);
     }
 
     public function test_table_can_filter_by_status(): void
@@ -348,7 +364,7 @@ class NewsFilamentResourceTest extends TestCase
     {
         $livewireComponent = Livewire::test(ListNews::class);
 
-        foreach (['title', 'category', 'status', 'source_name', 'published_at', 'created_at'] as $column) {
+        foreach (['title', 'newsCategory.name', 'newsSource.name', 'status', 'published_at', 'created_at'] as $column) {
             $livewireComponent->assertTableColumnExists($column);
         }
     }

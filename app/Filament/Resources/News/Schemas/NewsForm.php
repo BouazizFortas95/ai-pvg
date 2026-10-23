@@ -13,6 +13,7 @@ use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Str;
 
 class NewsForm
@@ -39,18 +40,28 @@ class NewsForm
                             ->live(onBlur: true)
                             ->afterStateUpdated(fn (Set $set, ?string $state) => $set('slug', Str::slug($state))),
 
-                        Select::make('category')
+                        // Only active categories and sources are offered for
+                        // new assignments; the currently selected (possibly
+                        // inactive) value stays visible and editable.
+                        Select::make('news_category_id')
                             ->label(__('Category'))
-                            ->required()
-                            ->default('technology')
-                            ->options([
-                                'technology' => 'Technology',
-                                'business' => 'Business',
-                                'science' => 'Science',
-                                'health' => 'Health',
-                                'sports' => 'Sports',
-                                'entertainment' => 'Entertainment',
-                            ]),
+                            ->nullable()
+                            ->native(false)
+                            ->searchable()
+                            ->preload()
+                            ->relationship('newsCategory', 'name', modifyQueryUsing: fn (Builder $query, ?News $record) => $query
+                                ->where('is_active', true)
+                                ->when($record?->news_category_id, fn (Builder $query, $categoryId) => $query->orWhere($query->getModel()->getKeyName(), $categoryId))),
+
+                        Select::make('news_source_id')
+                            ->label(__('Source'))
+                            ->nullable()
+                            ->native(false)
+                            ->searchable()
+                            ->preload()
+                            ->relationship('newsSource', 'name', modifyQueryUsing: fn (Builder $query, ?News $record) => $query
+                                ->where('is_active', true)
+                                ->when($record?->news_source_id, fn (Builder $query, $sourceId) => $query->orWhere($query->getModel()->getKeyName(), $sourceId))),
 
                         Select::make('status')
                             ->label(__('Status'))
@@ -96,9 +107,10 @@ class NewsForm
                     ->description(__('References, media, and publication metadata.'))
                     ->schema([
                         TextInput::make('source_name')
-                            ->label(__('Source name'))
+                            ->label(__('Legacy source name'))
                             ->nullable()
-                            ->maxLength(255),
+                            ->maxLength(255)
+                            ->helperText(__('Free-text publisher label kept for records created before structured news sources.')),
 
                         TextInput::make('source_url')
                             ->label(__('Source URL'))

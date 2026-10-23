@@ -23,20 +23,22 @@ class NewsTable
                     ->sortable()
                     ->wrap(),
 
-                TextColumn::make('category')
+                TextColumn::make('newsCategory.name')
                     ->label(__('Category'))
                     ->badge()
-                    ->color('primary')
+                    ->color(fn ($state) => $state ?? 'gray')
+                    ->placeholder('—')
+                    ->sortable(),
+
+                TextColumn::make('newsSource.name')
+                    ->label(__('Source'))
+                    ->placeholder('—')
+                    ->limit(28)
                     ->sortable(),
 
                 TextColumn::make('status')
                     ->label(__('Status'))
                     ->badge(),
-
-                TextColumn::make('source_name')
-                    ->label(__('Source name'))
-                    ->placeholder('—')
-                    ->sortable(),
 
                 TextColumn::make('published_at')
                     ->label(__('Publication date'))
@@ -50,16 +52,13 @@ class NewsTable
                     ->sortable(),
             ])
             ->filters([
-                SelectFilter::make('category')
+                SelectFilter::make('newsCategory')
                     ->label(__('Category'))
-                    ->options([
-                        'technology' => 'Technology',
-                        'business' => 'Business',
-                        'science' => 'Science',
-                        'health' => 'Health',
-                        'sports' => 'Sports',
-                        'entertainment' => 'Entertainment',
-                    ]),
+                    ->relationship('newsCategory', 'name'),
+
+                SelectFilter::make('newsSource')
+                    ->label(__('Source'))
+                    ->relationship('newsSource', 'name'),
 
                 SelectFilter::make('status')
                     ->label(__('Status'))
