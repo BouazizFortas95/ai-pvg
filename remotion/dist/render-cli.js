@@ -20,7 +20,7 @@ async function run() {
     const onProgress = ({ progress }) => console.log('Progress:', Math.round(progress * 100) + '%');
     const result = await renderMedia({
         composition: await selectComposition({
-            serveUrl: 'http://localhost:3000',
+            serveUrl: process.env.REMOTION_SERVE_URL || 'http://localhost:3000',
             id: compId,
             inputProps: { scenes, title: payload.title, language: payload.language || 'en', targetDuration: payload.target_duration || 30, template: payload.template || 'cyber' },
         }),

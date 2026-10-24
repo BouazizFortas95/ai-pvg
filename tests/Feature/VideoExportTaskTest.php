@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Enums\VideoExportStatus;
 use App\Models\VideoExport;
 use App\Models\VideoRender;
 use App\Services\PlatformPresetService;
@@ -32,6 +33,6 @@ class VideoExportTaskTest extends TestCase
         $export = VideoExport::factory()->create(['video_render_id' => $render->getKey()]);
         $service = new VideoExportService;
         $result = $service->validateAndRecord($export);
-        $this->assertSame('failed', $result->status);
+        $this->assertTrue($result->status === VideoExportStatus::Failed);
     }
 }

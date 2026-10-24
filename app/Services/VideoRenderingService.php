@@ -40,10 +40,27 @@ class VideoRenderingService
             fclose($pipes[1]); fclose($pipes[2]);
             proc_close($process);
         }
+        $verified = false;
+        $metadataNote = 'unverified';
+        if (shell_exec('which ffprobe 2>/dev/null')) {
+            $ffprobe = @shell_exec('ffprobe -v error -select_streams v:0 -show_entries stream=codec_name,width,height,duration -of default=noprint_wrappers=1 '.escapeshellarg($outputFile));
+            $verified = (bool) $ffprobe;
+            $metadataNote = $verified ? 'verified' : 'ffprobe unavailable or empty';
+        }
         if (file_exists($outputFile) && filesize($outputFile) > 100) {
-            $render->update(['status'=>'completed','completed_at'=>now(),'output_path'=>$outputFile,'duration'=>($script->target_duration) ?: 30]);
+            $render->update([
+                'status'=>'completed',
+                'completed_at'=>now(),
+                'output_path'=>$outputFile,
+                'duration'=>($script->target_duration) ?: 30,
+                'resolution'=>'1080x1920',
+            ]);
         } else {
-            $render->update(['status'=>'failed','error_message'=>'Render output missing or too small.','completed_at'=>now()]);
+            $render->update([
+                'status'=>'failed',
+                'error_message'=>'Render output missing or too small.',
+                'completed_at'=>now(),
+            ]);
         }
         @unlink($jsonFile);
         return $render->fresh();

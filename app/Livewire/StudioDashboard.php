@@ -56,7 +56,7 @@ class StudioDashboard extends Component
     {
         return view('studio.dashboard', [
             'stats' => $this->stats,
-            'scripts' => VideoScript::with('news')->latest()->take(5)->get(),
+            'scripts' => VideoScript::with(['news','videoRender','voiceGenerations','videoExports'])->latest()->take(5)->get(),
             'news' => News::latest()->take(5)->get(),
         ]);
     }

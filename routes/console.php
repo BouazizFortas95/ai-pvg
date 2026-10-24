@@ -9,3 +9,4 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote');
 
 Schedule::command('news:import-rss')->everyThirtyMinutes();
+Schedule::command('ai-pvg:diagnostics')->daily();

@@ -1,6 +1,7 @@
 <?php
 namespace App\Enums;
-use Filament\Support\Contracts\HasColor, HasLabel;
+use Filament\Support\Contracts\HasColor;
+use Filament\Support\Contracts\HasLabel;
 enum VideoRenderStatus: string implements HasColor, HasLabel
 {
     case Pending = 'pending';

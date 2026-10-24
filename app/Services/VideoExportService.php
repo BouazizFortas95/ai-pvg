@@ -45,7 +45,7 @@ class VideoExportService
         $sourcePath = $render->output_path ? storage_path('app/'.$render->output_path) : null;
         $exists = $sourcePath && file_exists($sourcePath) && filesize($sourcePath) > 1000;
         $metadata = $exists ? $this->extractMetadata($sourcePath) : null;
-        $validated = ! ($metadata === null || ($metadata['verified'] === false && $exists === false));
+        $validated = $exists && ($metadata ? ($metadata['verified'] === true) : false);
         $report = [
             'source_exists' => $exists,
             'ffprobe_available' => $this->hasFFprobe(),

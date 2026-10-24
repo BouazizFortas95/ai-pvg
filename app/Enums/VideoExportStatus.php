@@ -3,7 +3,7 @@
 namespace App\Enums;
 
 use Filament\Support\Contracts\HasColor;
-use HasLabel;
+use Filament\Support\Contracts\HasLabel;
 
 enum VideoExportStatus: string implements HasColor, HasLabel
 {

@@ -1,7 +1,9 @@
 <?php
+
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+
 return new class extends Migration
 {
     public function up(): void
@@ -18,10 +20,11 @@ return new class extends Migration
             $table->string('resolution')->default('1080x1920');
             $table->json('validation_report')->nullable();
             $table->text('error_message')->nullable();
-            $table->timestamp('created_at')->useCurrent();
+            $table->timestamps();
             $table->timestamp('completed_at')->nullable();
         });
     }
+
     public function down(): void
     {
         Schema::dropIfExists('video_exports');
