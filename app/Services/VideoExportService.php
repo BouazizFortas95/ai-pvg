@@ -2,65 +2,99 @@
 
 namespace App\Services;
 
+use App\Enums\VideoRenderStatus;
 use App\Models\VideoExport;
+use App\Services\Media\MediaProbeService;
+use App\Support\MediaPath;
+use App\Support\RemotionRuntime;
 
 class VideoExportService
 {
-    protected function hasFFprobe(): bool
+    public function __construct(?MediaProbeService $probe = null)
     {
-        return shell_exec('which ffprobe 2>/dev/null') !== null;
+        $this->probe = $probe ?? app(MediaProbeService::class);
     }
 
+    protected MediaProbeService $probe;
+
+    protected function hasFFprobe(): bool
+    {
+        return RemotionRuntime::ffprobePath() !== null;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
     protected function extractMetadata(string $path): ?array
     {
-        if (! file_exists($path)) {
+        if (! is_file($path)) {
             return null;
         }
-        $cmd = 'ffprobe -v error -select_streams v:0 -show_entries stream=width,height,duration,codec_name -of csv=s=x:p=0 '.escapeshellarg($path);
-        $output = shell_exec($cmd);
-        if (! $output) {
-            return ['verified' => false, 'note' => 'ffprobe unavailable or output empty'];
+
+        $probe = $this->probe->probe($path);
+
+        if (! ($probe['available'] ?? false)) {
+            return ['verified' => false, 'note' => $probe['reason'] ?? 'ffprobe unavailable'];
         }
-        $line = trim($output);
-        $parts = explode(',', $line);
 
         return [
-            'verified' => true,
-            'codec' => $parts[3] ?? null,
-            'width' => is_numeric($parts[0] ?? null) ? (int) $parts[0] : null,
-            'height' => is_numeric($parts[1] ?? null) ? (int) $parts[1] : null,
-            'duration' => is_numeric($parts[2] ?? null) ? (float) $parts[2] : null,
-            'raw' => $line,
+            'verified' => (bool) $probe['verified'],
+            'codec' => $probe['codec'],
+            'width' => $probe['width'],
+            'height' => $probe['height'],
+            'duration' => $probe['duration'],
+            'fps' => $probe['fps'],
+            'audio_stream' => $probe['audio_stream'],
+            'raw' => $probe['raw'],
+            'note' => $probe['reason'],
         ];
     }
 
     public function validateAndRecord(VideoExport $export): VideoExport
     {
         $render = $export->videoRender;
-        if (! $render || $render->status !== 'completed') {
+        $renderStatus = $render?->status instanceof \BackedEnum
+            ? $render->status->value
+            : $render?->status;
+
+        if (! $render || $renderStatus !== VideoRenderStatus::Completed->value) {
             $export->update(['status' => 'failed', 'error_message' => 'Source render not completed', 'completed_at' => now()]);
 
             return $export->fresh();
         }
-        $sourcePath = $render->output_path ? storage_path('app/'.$render->output_path) : null;
-        $exists = $sourcePath && file_exists($sourcePath) && filesize($sourcePath) > 1000;
-        $metadata = $exists ? $this->extractMetadata($sourcePath) : null;
-        $validated = $exists && ($metadata ? ($metadata['verified'] === true) : false);
+
+        $sourcePath = MediaPath::resolve($render->output_path);
+        $exists = $sourcePath !== null && is_file($sourcePath) && (filesize($sourcePath) ?: 0) > 1000;
+        $metadata = $exists && $sourcePath ? $this->extractMetadata($sourcePath) : null;
+        $validated = $exists && $metadata !== null && ($metadata['verified'] ?? false) === true;
+
+        $resolution = ($metadata['width'] ?? 0) > 0 && ($metadata['height'] ?? 0) > 0
+            ? $metadata['width'].'x'.$metadata['height']
+            : ($render->resolution ?? '1080x1920');
+
         $report = [
             'source_exists' => $exists,
+            'source_path' => $sourcePath,
             'ffprobe_available' => $this->hasFFprobe(),
             'metadata' => $metadata,
-            'preset_validation' => PlatformPresetService::validate($export->platform_preset, $metadata['duration'] ?? $render->duration ?? 0, $render->resolution ?? '1080x1920'),
+            'preset_validation' => PlatformPresetService::validate(
+                $export->platform_preset,
+                $metadata['duration'] ?? $render->duration ?? 0,
+                $resolution
+            ),
         ];
+
         $export->update([
             'status' => $validated ? 'completed' : 'failed',
             'output_path' => $exists ? $render->output_path : null,
-            'file_size' => $exists ? filesize($sourcePath) : null,
+            'file_size' => $exists && $sourcePath ? (filesize($sourcePath) ?: 0) : null,
             'duration' => $metadata['duration'] ?? $render->duration,
-            'resolution' => $render->resolution ?? '1080x1920',
+            'resolution' => $resolution,
             'validation_report' => $report,
             'completed_at' => now(),
-            'error_message' => $validated ? null : 'Video file missing or metadata unverified',
+            'error_message' => $validated
+                ? null
+                : 'Video file missing or metadata unverified: '.($metadata['note'] ?? 'unknown reason'),
         ]);
 
         return $export->fresh();

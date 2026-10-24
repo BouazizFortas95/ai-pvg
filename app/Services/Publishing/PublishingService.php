@@ -3,7 +3,9 @@
 namespace App\Services\Publishing;
 
 use App\Contracts\PublishingProviderInterface;
+use App\Enums\VideoExportStatus;
 use App\Models\YoutubePublishingState;
+use App\Support\MediaPath;
 
 class PublishingService
 {
@@ -42,12 +44,17 @@ class PublishingService
     {
         $state = YoutubePublishingState::findOrFail($stateId);
         $export = $state->videoExport;
-        $path = $export && $export->output_path ? storage_path('app/'.$export->output_path) : null;
-        if (! $path || ! file_exists($path) || filesize($path) < 100) {
+        $path = MediaPath::resolve($export?->output_path);
+        if (! $path || ! is_file($path) || (filesize($path) ?: 0) < 100) {
             $state->update(['status' => 'failed', 'error_message' => 'Export file missing or too small']);
             throw new \RuntimeException('Export file missing');
         }
-        if ($export && $export->status !== 'completed') {
+
+        $exportStatus = $export?->status instanceof \BackedEnum
+            ? $export->status->value
+            : $export?->status;
+
+        if ($export && $exportStatus !== VideoExportStatus::Completed->value) {
             $state->update(['status' => 'failed', 'error_message' => 'Export not validated']);
             throw new \RuntimeException('Export validation incomplete');
         }

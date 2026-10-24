@@ -10,3 +10,4 @@ Artisan::command('inspire', function () {
 
 Schedule::command('news:import-rss')->everyThirtyMinutes();
 Schedule::command('ai-pvg:diagnostics')->daily();
+Schedule::command('ai-pvg:automation:tick')->everyMinute()->withoutOverlapping();

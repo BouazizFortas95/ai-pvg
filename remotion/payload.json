@@ -1,1 +1,26 @@
-{"title":"Audio Test","language":"en","target_duration":10,"scenes":[{"order":1,"type":"intro","duration":5,"headline":"Intro","description":"Introduction","narration":"Welcome to AI-PVG","visual_keywords":["news"]},{"order":2,"type":"conclusion","duration":5,"headline":"Outro","description":"Conclusion","narration":"Thank you for watching","visual_keywords":["news"]}],"audioUrl":"/fake_narration.mp3","template":"cyber"}
+{
+  "title": "G-00 Verified Render",
+  "language": "en",
+  "target_duration": 6,
+  "template": "cyber",
+  "scenes": [
+    {
+      "order": 1,
+      "type": "intro",
+      "duration": 3,
+      "headline": "Remotion Bundle Fixed",
+      "description": "Real MP4 verification",
+      "narration": "The Remotion render pipeline is producing a real video.",
+      "visual_keywords": ["remotion", "video"]
+    },
+    {
+      "order": 2,
+      "type": "conclusion",
+      "duration": 3,
+      "headline": "FFprobe Verified",
+      "description": "Codec and streams confirmed",
+      "narration": "FFprobe confirms the output file.",
+      "visual_keywords": ["ffprobe", "verified"]
+    }
+  ]
+}

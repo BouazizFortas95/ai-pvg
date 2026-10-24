@@ -1,26 +1,45 @@
 <?php
+
 namespace App\Services;
+
+use App\Enums\VideoScriptStatus;
 use App\Models\VideoRender;
-use App\Models\VideoScript;
+use App\Services\Media\MediaProbeService;
+use App\Support\RemotionRuntime;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Storage;
+use Symfony\Component\Process\Process;
+
 class VideoRenderingService
 {
-    protected string $remotionDir = 'remotion';
-    protected string $outputDir = 'public/videos';
+    protected MediaProbeService $probe;
+
+    public function __construct(?MediaProbeService $probe = null)
+    {
+        $this->probe = $probe ?? app(MediaProbeService::class);
+    }
 
     public function render(VideoRender $render): VideoRender
     {
         $script = $render->videoScript;
-        if (! $script || $script->status !== 'approved') {
-            $render->update(['status'=>'failed','error_message'=>'Script not approved']);
+
+        $scriptStatus = $script?->status instanceof \BackedEnum
+            ? $script->status->value
+            : $script?->status;
+
+        if (! $script || $scriptStatus !== VideoScriptStatus::Approved->value) {
+            $render->update(['status' => 'failed', 'error_message' => 'Script not approved']);
+
             return $render->fresh();
         }
+
         $scenes = $script->scenes ?? [];
         if (empty($scenes)) {
-            $render->update(['status'=>'failed','error_message'=>'No scenes']);
+            $render->update(['status' => 'failed', 'error_message' => 'No scenes']);
+
             return $render->fresh();
         }
+
         $payload = [
             'scenes' => $scenes,
             'title' => $script->title,
@@ -28,41 +47,123 @@ class VideoRenderingService
             'target_duration' => $script->target_duration,
             'template' => $render->template,
         ];
-        $jsonFile = storage_path('app/payload_'.($render->id).'.json');
-        $outputFile = $this->outputDir.'/render_'.($render->id).'.mp4';
-        file_put_contents($jsonFile, json_encode($payload));
-        $cmd = 'node '.base_path($this->remotionDir.'/dist/render-cli.js').' --input '.escapeshellarg($jsonFile).' --output '.escapeshellarg($outputFile);
-        $render->update(['status'=>'rendering','started_at'=>now(),'completed_at'=>null]);
-        $process = proc_open($cmd, [1=>['pipe','w'],2=>['pipe','w']], $pipes);
-        if (is_resource($process)) {
-            $stdout = stream_get_contents($pipes[1]);
-            $stderr = stream_get_contents($pipes[2]);
-            fclose($pipes[1]); fclose($pipes[2]);
-            proc_close($process);
-        }
-        $verified = false;
-        $metadataNote = 'unverified';
-        if (shell_exec('which ffprobe 2>/dev/null')) {
-            $ffprobe = @shell_exec('ffprobe -v error -select_streams v:0 -show_entries stream=codec_name,width,height,duration -of default=noprint_wrappers=1 '.escapeshellarg($outputFile));
-            $verified = (bool) $ffprobe;
-            $metadataNote = $verified ? 'verified' : 'ffprobe unavailable or empty';
-        }
-        if (file_exists($outputFile) && filesize($outputFile) > 100) {
+
+        $jsonFile = storage_path('app/tmp/remotion_payload_'.$render->getKey().'.json');
+        $configuredOutputDir = (string) config('remotion.output_dir', 'public/videos');
+        $outputDir = RemotionRuntime::isAbsolute($configuredOutputDir)
+            ? $configuredOutputDir
+            : base_path($configuredOutputDir);
+        $outputFile = rtrim($outputDir, '/\\').DIRECTORY_SEPARATOR.'render_'.$render->getKey().'.mp4';
+        $relativeOutput = RemotionRuntime::isAbsolute($configuredOutputDir)
+            ? $outputFile
+            : rtrim($configuredOutputDir, '/\\').'/render_'.$render->getKey().'.mp4';
+
+        File::ensureDirectoryExists(dirname($jsonFile));
+        File::ensureDirectoryExists(dirname($outputFile));
+
+        file_put_contents($jsonFile, json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+
+        $cliPath = RemotionRuntime::cliPath();
+        if (! is_file($cliPath)) {
+            @unlink($jsonFile);
             $render->update([
-                'status'=>'completed',
-                'completed_at'=>now(),
-                'output_path'=>$outputFile,
-                'duration'=>($script->target_duration) ?: 30,
-                'resolution'=>'1080x1920',
+                'status' => 'failed',
+                'error_message' => 'Remotion CLI missing: '.$cliPath,
+                'completed_at' => now(),
             ]);
-        } else {
-            $render->update([
-                'status'=>'failed',
-                'error_message'=>'Render output missing or too small.',
-                'completed_at'=>now(),
+
+            return $render->fresh();
+        }
+
+        $render->update(['status' => 'rendering', 'started_at' => now(), 'completed_at' => null]);
+
+        $process = new Process([
+            RemotionRuntime::nodeBinary(),
+            $cliPath,
+            '--input', $jsonFile,
+            '--output', $outputFile,
+        ], RemotionRuntime::directory(), RemotionRuntime::environment(), null, (int) config('remotion.timeout', 600));
+
+        try {
+            $process->run();
+        } catch (\Throwable $exception) {
+            Log::error('Remotion process failed to start', [
+                'render_id' => $render->getKey(),
+                'error' => $exception->getMessage(),
             ]);
         }
+
+        if (! $process->isSuccessful()) {
+            $error = $this->tail($process->getErrorOutput() ?: $process->getOutput());
+            Log::error('Remotion render failed', [
+                'render_id' => $render->getKey(),
+                'exit_code' => $process->getExitCode(),
+                'error' => $error,
+            ]);
+            @unlink($jsonFile);
+            $render->update([
+                'status' => 'failed',
+                'error_message' => 'Remotion exit '.$process->getExitCode().': '.$error,
+                'completed_at' => now(),
+            ]);
+
+            return $render->fresh();
+        }
+
+        $size = is_file($outputFile) ? (filesize($outputFile) ?: 0) : 0;
+        if ($size < 100) {
+            @unlink($jsonFile);
+            $render->update([
+                'status' => 'failed',
+                'error_message' => 'Render output missing or too small.',
+                'completed_at' => now(),
+            ]);
+
+            return $render->fresh();
+        }
+
+        $probe = $this->probe->probe($outputFile);
+        $expected = [
+            'codec' => config('remotion.expected_codec', 'h264'),
+            'width' => (int) config('remotion.expected_width', 1080),
+            'height' => (int) config('remotion.expected_height', 1920),
+            'fps' => (float) config('remotion.expected_fps', 30),
+            'min_duration' => 0.1,
+        ];
+        $check = $this->probe->matches($probe, $expected);
+        $requireVerification = (bool) config('remotion.require_verification', true);
+
+        if ($requireVerification && ! $check['valid']) {
+            @unlink($jsonFile);
+            $render->update([
+                'status' => 'failed',
+                'error_message' => 'Media verification failed: '.implode(' ', $check['errors']),
+                'completed_at' => now(),
+            ]);
+
+            return $render->fresh();
+        }
+
+        $render->update([
+            'status' => 'completed',
+            'completed_at' => now(),
+            'output_path' => $relativeOutput,
+            'duration' => $probe['duration'] ?? $script->target_duration ?? 30,
+            'resolution' => ($probe['width'] ?? 0) > 0 && ($probe['height'] ?? 0) > 0
+                ? $probe['width'].'x'.$probe['height']
+                : '1080x1920',
+            'fps' => $probe['fps'] ?? 30,
+        ]);
+
         @unlink($jsonFile);
+
         return $render->fresh();
+    }
+
+    private function tail(string $value, int $limit = 1000): string
+    {
+        $value = trim($value);
+
+        return $value === '' ? '(no output)' : substr($value, -$limit);
     }
 }
