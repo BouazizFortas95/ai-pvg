@@ -1,12 +1,12 @@
 # AI-PVG — Hyper-Automation & Autonomous Intelligence Expansion Plan
 
 **File:** `AUTOMATION_EXPANSION_PROPOSAL.md`
-**Status:** G-00 approved/verified; G-01 implemented and verified; G-02+ proposed.
+**Status:** G-00 approved/verified; G-01 and G-02 implemented and verified; G-03+ proposed.
 **Author role:** Principal AI Systems Architect / Lead Laravel 12 Engineer / Media Automation Strategist
 **Date:** 2026-10-24
-**Baseline:** Tasks 01–10.6 · G-00 verified · G-01 verified 2026-10-24 — 183 tests passed / 625 assertions / 0 failures / 0 risky.
+**Baseline:** Tasks 01–10.6 · G-00 verified · G-01 verified · G-02 verified 2026-10-24 — 205 tests / 883 assertions / 0 failures / 0 risky.
 
-> **Scope statement:** This document defines the modular Phase G and Phase H roadmap. G-01 is implemented dark (`AUTOMATION_ENABLED=false`, `AUTOMATION_DRY_RUN=true`); G-02+ remains proposed. Every automation described here is opt-in, config-gated, dry-run-capable, budget-bounded, and HITL-aware.
+> **Scope statement:** This document defines the modular Phase G and Phase H roadmap. G-01 and G-02 are implemented dark (`AUTOMATION_ENABLED=false`, `AUTOMATION_DRY_RUN=true`, `AUTOMATION_TRIAGE_ENABLED=false`); G-03+ remains proposed. Every automation described here is opt-in, config-gated, dry-run-capable, budget-bounded, and HITL-aware.
 
 ---
 
@@ -769,14 +769,23 @@ Jobs are individually dispatched; there is no end-to-end orchestrator, no run da
 
 - **Phase:** G
 - **Priority:** P1
+- **Status:** **Done — verified 2026-10-24**
 - **Depends on:** G-01
 - **Objective:** Rank incoming news by velocity/heat/novelty/diversity, cluster multi-source stories, auto-greenlight above threshold.
-- **In scope:** `news_scores`, `story_clusters`, `story_cluster_news`; scoring/clustering/greenlight services; jobs; scheduler; Filament resources; Studio triage panel.
-- **Out of scope:** paid trend APIs; automatic publishing.
-- **Acceptance criteria:** reproducible scores; 3–5 source cluster cap; no duplicate scripts; dry-run safe.
-- **Test gate:** unit scoring/clustering; feature auto-greenlight; no network.
-- **Rollback:** disable jobs; scores remain historical.
-- **Risks:** clustering false merges; mitigate with HITL review band.
+- **In scope:** `news_scores`, `story_clusters`, `story_cluster_news`; deterministic scoring/clustering/greenlight services; orchestrator stage classes; read-only Filament resources; Studio Triage panel. No autonomous G-02 job or scheduler entry was added; execution remains manual/flag-gated.
+- **Out of scope:** paid trend APIs; automatic publishing; G-03 script agents; captions; assets; multi-format fan-out.
+- **Deliverables:** three additive migrations; triage enums/models; `TriageGate`, `TextSimilarityService`, `NewsScoringService`, `StoryClusteringService`, `AutoGreenlightService`; `ScoreNewsStage`, `ClusterStoriesStage`, `AutoGreenlightStage`; `NewsScoreResource`, `StoryClusterResource`; Studio Triage panel; diagnostics; tests; documentation.
+- **Data:** additive only (`2026_10_24_130000`–`2026_10_24_130200`). Dev DB preserved: `news=1`, `video_renders=0`, `youtube_publishing_states=0`; all three G-02 tables have `0` rows.
+- **Acceptance criteria:** reproducible scores with stored breakdown; 3–5 distinct-source cluster cap; every claim/bullet grounded in valid `news_id`; auto band `>= 85`; review band `60–84`; below band inert; idempotent draft script/run or dry-run plan; idempotent review gate; flag off by default; no duplicate scripts; no network calls.
+- **Evidence:**
+  - Offline token/TF-IDF clustering; grounded fact sheets; ungrounded items stripped.
+  - `AutomationRun` active window `cluster-{id}`; reruns return the existing script; dry-run stores `planned_script` only.
+  - Review-band `ApprovalGate` type `AutoGreenlight` via `ApprovalService`; below-band no downstream action.
+  - Studio action is admin-only and exposes no publishing controls.
+  - G-02 suite: **22 passed / 255 assertions**; full suite: **205 passed / 883 assertions / 0 failures / 0 risky**.
+- **Test gate:** every G-02 unit/feature class uses `Http::preventStrayRequests()`; no external calls in tests.
+- **Rollback:** disable `AUTOMATION_TRIAGE_ENABLED` / feature flag; historical scores and clusters remain inert.
+- **Risks:** clustering false merges; mitigate with the 3–5 source cap, confidence/attribution, and HITL review band.
 
 ### G-03 — Multi-Agent Script & Directives (Pillar 2)
 
@@ -1024,10 +1033,11 @@ draft → generating → generated → approved
 
 1. **G-00 first** — real verified MP4 is the gate for all media automation.
 2. **G-01 control plane** — implemented dark (`AUTOMATION_ENABLED=false`) and verified 2026-10-24.
-3. **Pillar rollouts** — each behind `feature_flags` + config; canary one pipeline, then expand.
-4. **Dry-run period** — run in dry-run for ≥1 week; compare projected vs actual cost and outputs.
-5. **HITL pilot** — admins only; no auto-publish.
-6. **Rollback** — set flag false; jobs early-return; no data deletion; additive tables remain.
+3. **G-02 news triage** — implemented dark (`AUTOMATION_TRIAGE_ENABLED=false`) with deterministic local scoring/clustering and a dry-run auto-greenlight path; verified 2026-10-24.
+4. **Pillar rollouts** — each behind `feature_flags` + config; canary one pipeline, then expand.
+5. **Dry-run period** — run in dry-run for ≥1 week; compare projected vs actual cost and outputs.
+6. **HITL pilot** — admins only; no auto-publish.
+7. **Rollback** — set flag false; jobs early-return; no data deletion; additive tables remain.
 
 ---
 
@@ -1062,7 +1072,7 @@ draft → generating → generated → approved
 | Public uploads without dual approval | 0 |
 
 **Gate G-A:** G-00 passes real FFprobe verification. **PASSED 2026-10-24.**
-**Gate G-B:** G-01..G-03 pass mocked + dry-run pilots.
+**Gate G-B:** G-01..G-03 pass mocked + dry-run pilots. **G-01 and G-02 passed; G-03 pending.**
 **Gate G-C:** G-04..G-08 pass opt-in integration tests.
 **Gate H-A:** H-01..H-03 pass privacy/authorization review.
 
@@ -1185,4 +1195,4 @@ All migrations are **additive**; no column drops, no destructive operations, no 
 
 ---
 
-**End of proposal.** G-00 and G-01 are approved, implemented, and verified. Implementation of G-02 and later phases requires explicit approval.
+**End of proposal.** G-00, G-01, and G-02 are approved, implemented, and verified. Implementation of G-03 and later phases requires explicit approval.

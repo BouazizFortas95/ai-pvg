@@ -3,7 +3,7 @@
 **Project:** AI Platform Video Generator (AI-PVG)  
 **Last Audit Date:** 2026-10-24  
 **Auditor Role:** Lead Software Architect / Senior Laravel Engineer / QA & TPM  
-**Audit Type:** G-00 Remotion Bundle Repair & G-01 Automation Control Plane Verification
+**Audit Type:** G-00 Remotion Bundle Repair · G-01 Automation Control Plane · G-02 News Triage Verification
 
 ---
 
@@ -25,9 +25,9 @@ To maintain strict engineering rigor, this dashboard enforces the following stat
 | Metric                 | Status / Value                                                                                       | Verification Command |
 | :--------------------- | :--------------------------------------------------------------------------------------------------- | :------------------- |
 | **Current Git Branch** | `main`                                                                                               | `git branch --show-current` |
-| **Latest Commit**      | `96c5040 feat: Add diagnostics and MP4 verification commands, enhance YouTube publishing integration` | `git log -1 --oneline` |
-| **Working Tree State** | **Dirty (G-00 + G-01 changes uncommitted)**                                                          | `git status --short` |
-| **Uncommitted Scope**  | Remotion bundle fix, Laravel render invocation hardening, G-01 automation control plane, tests, and documentation. | No `git reset`, `git checkout`, or commit was executed. |
+| **Latest Commit**      | `208eb57 feat: complete G-00 media verification and G-01 automation control plane`                    | `git log -1 --oneline` |
+| **Working Tree State** | **Dirty (G-02 changes uncommitted)**                                                                 | `git status --short` |
+| **Uncommitted Scope**  | G-02 additive news-triage migrations, deterministic scoring/clustering/greenlight services, read-only Filament resources, Studio Triage panel, tests, and documentation. No commit was executed. | `git diff --stat` |
 
 ---
 
@@ -36,8 +36,9 @@ To maintain strict engineering rigor, this dashboard enforces the following stat
 | Component                   | Reported State                                             | Verification Level       | Notes / Evidence                                                                 |
 | :-------------------------- | :--------------------------------------------------------- | :----------------------- | :------------------------------------------------------------------------------- |
 | **Framework Stack**         | Laravel 12 + Filament 5 (`/auth`) + Livewire + Bootstrap 5 | **TESTED**               | Core web, admin, and studio scaffolding active.                                  |
-| **Database**                | SQLite (Development Default)                               | **INTEGRATION VERIFIED** | G-01 additive migrations applied; dev DB preserved: `news=1`, `video_renders=0`, `youtube_publishing_states=0`; all seven new control-plane tables empty. |
+| **Database**                | SQLite (Development Default)                               | **INTEGRATION VERIFIED** | G-01 + G-02 additive migrations applied; dev DB preserved: `news=1`, `video_renders=0`, `youtube_publishing_states=0`; all G-01 control-plane and G-02 triage tables are empty. |
 | **Automation Control Plane**| G-01, disabled by default                                  | **TESTED**               | 45 G-01 tests / 233 assertions; no external provider or publishing calls.       |
+| **News Triage (G-02)**      | G-02, disabled by default                                  | **TESTED**               | 22 G-02 tests / 255 assertions; deterministic local scoring/clustering; zero external calls; `news_scores=0`, `story_clusters=0`, `story_cluster_news=0`. |
 | **Remotion**                | `4.0.538` (bundler/renderer/runtime aligned)               | **INTEGRATION VERIFIED** | `bundle()` → composition selection → `renderMedia()` succeeds.                  |
 | **Remotion Browser**        | Bundled Chrome headless shell                              | **INTEGRATION VERIFIED** | `remotion/node_modules/.remotion/chrome-headless-shell/win64/...` used locally.  |
 | **FFmpeg / FFprobe**        | Bundled with Remotion compositor                           | **INTEGRATION VERIFIED** | `@remotion/compositor-win32-x64-msvc/{ffmpeg,ffprobe}.exe` auto-detected.        |
@@ -47,7 +48,8 @@ To maintain strict engineering rigor, this dashboard enforces the following stat
 
 ## 4. Automated Test Suite Status
 
-- **Current Live Execution:** `183 passed` | `625 assertions` | `0 failures` | `0 risky` (latest run 53.96s).
+- **Current Live Execution:** `205 passed` | `883 assertions` | `0 failures` | `0 risky` (latest run 57.69s).
+- **G-02 Scope:** `22 passed` | `255 assertions`; every G-02 unit/feature class calls `Http::preventStrayRequests()`; no network calls.
 - **G-01 Scope:** `45 passed` | `233 assertions`; every G-01 unit/feature class calls `Http::preventStrayRequests()`.
 - **Test Isolation:** `phpunit.xml` forces `DB_CONNECTION=sqlite` and `DB_DATABASE=:memory:`; the dev SQLite file is not touched by tests.
 - **Verification Command:** `php artisan test`.
@@ -70,6 +72,7 @@ To maintain strict engineering rigor, this dashboard enforces the following stat
 | **9. YouTube OAuth & Resumable Upload**     |      Yes       | Yes (Mocked HTTP) |          **NOT VERIFIED**       |        No        | **NEEDS VERIFICATION**          |
 | **10. Publishing Status & Monitoring**      |    Partial     |      Partial      |               No                |        No        | **PARTIAL**                     |
 | **11. Automation Control Plane (G-01)**     |      Yes       | Yes (45 tests)    |       N/A (inert)               |        No        | **DONE (G-01 foundation)**      |
+| **12. News Triage (G-02)**                  |      Yes       | Yes (22 tests)    |       N/A (inert)               |        No        | **DONE (G-02 foundation)**      |
 
 ---
 
@@ -130,9 +133,9 @@ To maintain strict engineering rigor, this dashboard enforces the following stat
 
 1. **BLOCKER-01 (Resolved): Remotion `serve/index.html` HTTP 404**
    - Resolved by the `bundle()` + `Composition` + dedicated-port implementation. Verified with two real MP4s.
-2. **BLOCKER-02 (P1 — High): Uncommitted Working Tree State**
-   - **Impact:** Risk of accidental regression or lost work while G-02 begins.
-   - **Resolution Required:** Review the diff, run the suite, and create a checkpoint commit once authorized.
+2. **BLOCKER-02 (P1 — High): Uncommitted G-02 Working Tree State**
+   - **Impact:** Risk of accidental regression or lost work while G-03 begins.
+   - **Resolution Required:** Review the G-02 diff, confirm the suite, and create a checkpoint commit once authorized.
 3. **BLOCKER-03 (P1 — High): Mock-Only Verification of External Boundaries**
    - AI script generation, real TTS synthesis, and YouTube uploads still rely on mocks; no single unmocked pipeline run exists.
 4. **BLOCKER-04 (P2 — Medium): Real TTS Audio Not Yet Served to Remotion**
@@ -144,37 +147,49 @@ To maintain strict engineering rigor, this dashboard enforces the following stat
 
 ## 9. Next Recommended Task
 
-**NEXT: `G-02 — News Scoring, Clustering & Auto-Greenlight` (pre-flight blueprint; awaiting explicit approval).**
+**G-02 is DONE and verified (2026-10-24). NEXT: `G-03 — Multi-Agent Script & Scene Directives` (pre-flight blueprint; awaiting explicit approval).**
 
-G-01 is complete and verified. G-02 builds on the control plane while keeping paid providers and public publishing disabled by default.
+G-02 is implemented dark. `automation.triage.enabled` and the `triage.news_scoring_enabled` feature flag both default to `false`; the Studio action is admin-only and delegates to the shared auto-greenlight service.
 
-### Why G-02 Comes Next:
+### Why G-03 Comes Next:
 
-1. **Triage Before Generation:** The importer still treats every article equally. Scoring and clustering are required before multi-agent scripts or render fan-out can be prioritized safely.
-2. **Control Plane Is Ready:** G-02 can reuse the run/stage ledger, budget guard, dry-run context, feature flags, and approval gates delivered by G-01.
-3. **No Regression:** Existing Tasks 01–10.6 behavior remains the fallback; G-02 jobs are additive and disabled by default.
+1. **Grounded Inputs Exist:** G-02 now produces deterministic scores, 3–5 source clusters, and source-attributed fact sheets that a script-agent chain can consume safely.
+2. **Control Plane Is Ready:** G-03 can reuse `BudgetGuard`, `DryRunContext`, `AutomationOrchestrator`, `ApprovalService`, and the feature-flag gate delivered by G-01.
+3. **No Regression:** Existing single-prompt script generation remains the fallback; G-03 stages are additive and disabled by default.
+4. **Fact-Check Boundary:** G-02 already rejects ungrounded claims. G-03 must preserve that invariant while adding hook/narrative agents.
 
-### G-02 Pre-Flight Blueprint (proposed, not implemented)
+### G-02 Completion Summary
+
+- **Data:** additive `news_scores`, `story_clusters`, and `story_cluster_news`; dev DB remains `news=1`, `video_renders=0`, `youtube_publishing_states=0`, with all three G-02 tables at `0` rows.
+- **Scoring:** local-only velocity, keyword heat, novelty, source diversity, and recency components; stored weighted composite, band, and explanatory breakdown.
+- **Clustering:** deterministic TF-IDF/cosine grouping; 3–5 distinct-source cap; grounded claims, bullets, entities, and timeline entries with valid `source_news_ids`.
+- **Greenlight:** threshold guardrails (auto ≥ 85, review 60–84); idempotent `AutomationRun`; one draft `VideoScript`; review-band `ApprovalGate`; dry-run planned output only.
+- **UI:** read-only `NewsScoreResource` and `StoryClusterResource`; Studio Triage panel with breakdowns, source attribution, and an admin-only “Generate script” action; no publishing controls.
+- **Verification:** G-02 `22 passed / 255 assertions`; full suite `205 passed / 883 assertions / 0 failures / 0 risky`; `Http::preventStrayRequests()` in every G-02 test; no external calls.
+
+### G-03 Pre-Flight Blueprint (proposed, not implemented)
 
 - **Data (additive only):**
-  - `news_scores`: unique `news_id`; component scores; indexed `composite_score`; `breakdown` JSON; `scored_at`.
-  - `story_clusters`: canonical title/summary, `fact_sheet` JSON, status, confidence, time window, source count.
-  - `story_cluster_news`: cluster/news foreign keys, similarity, `is_primary`, unique cluster/news pair.
-- **Services:**
-  - `Scoring\NewsScoringService` — deterministic weighted score with stored breakdown; velocity, keyword heat, novelty, source diversity, recency.
-  - `Clustering\StoryClusteringService` — local token/TF-IDF similarity by default; optional embedding provider behind an interface; 3–5 source cluster cap; every fact-sheet claim references at least one `news_id`.
-  - `Greenlight\AutoGreenlightService` — threshold bands; draft `VideoScript` creation; approval gate for the review band; idempotent run linkage.
+  - `script_variants`: `video_script_id`, deterministic variant key, hook index, prompt/model version, status, `body`/`scenes` JSON, `source_news_ids`, timestamps.
+  - `script_fact_checks`: `video_script_id`, `script_variant_id`, claim text, `source_news_ids`, verdict (`supported|unsupported|uncertain`), evidence, checker version, timestamps.
+  - Optional `video_scripts.scenes[].directives` payload; legacy scenes without directives must keep rendering.
+- **Services and stages:**
+  - `ScriptAgents\HookSpecialistAgent` — produce exactly three distinct hooks from the grounded fact sheet.
+  - `ScriptAgents\NarrativeArchitectAgent` — turn the selected hook plus fact sheet into scene directives and durations.
+  - `ScriptAgents\FactCheckerAgent` — verify every generated claim against member `news_id` evidence; unsupported claims block auto-approval.
+  - `ScriptAgents\DirectiveValidator` — enforce schema, scene order, duration tolerance, language, and source references.
+  - `Stages\GenerateScriptVariantsStage`, `Stages\FactCheckScriptStage` — orchestrator-compatible, idempotent, cost-estimated `0` for local/dry-run fixtures.
 - **Execution safety:**
-  - Create `automation_runs` with the news/cluster subject and a stable active window.
-  - Any optional paid call must pass `BudgetGuard::authorize()`, respect `DryRunContext`, and record usage in `ai_usage_ledger`.
-  - Dry-run performs zero paid calls and labels synthetic/planned output.
-  - Feature flag off by default; jobs and scheduler entries are inert until explicitly enabled.
-- **UI:** read-only `NewsScoreResource` and `StoryClusterResource`; Studio “Triage” panel with score breakdown, source attribution, and a “Generate script” action. No publishing controls.
-- **Tests:** deterministic scoring fixtures, clustering/no-false-merge fixtures, 3–5 source cap, threshold bands, duplicate-script prevention, idempotent re-runs, dry-run zero-call proof, feature-flag-off behavior. All tests use `Http::preventStrayRequests()` or explicit `Http::fake()`.
-- **Acceptance:** reproducible score breakdown; 3–5 source cluster cap; no duplicate scripts; auto-greenlight never bypasses HITL gates; zero paid calls in dry-run.
-- **Out of scope:** paid trend APIs, script agents (G-03), captions (G-04), assets (G-05), fan-out (G-06), and publishing.
-- **Rollback:** disable G-02 jobs/flags; historical scores and clusters remain inert.
-- **Risks:** false merges; mitigate with a confidence threshold, source attribution, and a HITL review band.
+  - Gate behind `automation.script_agents.enabled=false` and a `script_agents.feature_flag` DB override; both must be explicitly enabled.
+  - Any provider call must pass `BudgetGuard::authorize()`, use `DryRunContext::providerFor()`, and settle usage into `ai_usage_ledger`.
+  - Dry-run returns labeled synthetic variants/fact checks and never mutates a production `VideoScript`.
+  - Idempotent active window `cluster-{id}:g03-v1`; reruns must return existing variants rather than duplicate rows.
+- **UI:** Filament relation managers for variants and fact checks; Studio hook selection/diff view; no publishing controls.
+- **Tests:** mocked agent responses; exactly three hooks; duration tolerance ±5s; unsupported claim blocks; legacy script compatibility; dry-run zero-call proof; flag-off behavior; rerun idempotency; all tests use `Http::preventStrayRequests()` or explicit `Http::fake()`.
+- **Acceptance:** three distinct hooks; schema-valid scene directives; unsupported claims block auto-approval; legacy scripts render unchanged; zero paid calls in dry-run; no duplicate variants or scripts.
+- **Out of scope:** captions (G-04), visual assets (G-05), multi-format fan-out (G-06), publishing, and any automatic public action.
+- **Rollback:** set the G-03 flag false; the existing single-prompt `VideoScriptGenerator` path remains the fallback and additive tables stay inert.
+- **Risks:** prompt drift, hallucinated claims, cost/latency spikes, and provider variance; mitigate with versioned prompts, golden fixtures, strict source grounding, budget caps, and HITL review.
 
 ---
 
@@ -290,3 +305,103 @@ Feature flags: total=0; enabled=0
 - No existing row was mutated, truncated, or deleted.
 - No external network call, paid provider call, live YouTube upload, or public publish occurred during verification.
 - Automation remains disabled and dry-run remains enabled by default.
+
+---
+
+## 12. G-02 Evidence Appendix
+
+### 12.1 Scope and migration evidence
+
+- **Migration range:** `2026_10_24_130000`–`2026_10_24_130200` (three additive migrations).
+- **Tables:** `news_scores`, `story_clusters`, `story_cluster_news`.
+- **Runtime defaults:** `AUTOMATION_TRIAGE_ENABLED=false`; feature flag `triage.news_scoring_enabled`; `AUTOMATION_DRY_RUN=true`.
+- **Services:** `NewsScoringService`, `TextSimilarityService`, `StoryClusteringService`, `AutoGreenlightService`, `TriageGate`.
+- **Stages:** `ScoreNewsStage`, `ClusterStoriesStage`, `AutoGreenlightStage`.
+- **UI:** read-only `NewsScoreResource` / `StoryClusterResource`; Studio Triage panel with score breakdowns, source attribution, and admin-only “Generate script.”
+- **Jobs/scheduler:** no autonomous G-02 job or scheduler entry was added; execution is manual/flag-gated through the orchestrator stages and Studio action.
+
+### 12.2 Determinism, grounding, and safety
+
+- Scoring uses only local data and stores component scores, weighted contributions, thresholds, evidence, explanations, `scored_at`, and `breakdown` JSON.
+- Clustering uses deterministic token/TF-IDF cosine similarity; no embeddings, HTTP, or paid calls.
+- Persisted clusters are limited to 3–5 distinct sources. Fact-sheet claims, bullets, entities, and timeline items with missing or invalid `source_news_ids` are stripped.
+- Auto-greenlight is idempotent by cluster active window (`cluster-{id}`); reruns return the existing script and never create a duplicate.
+- Review-band scores open an idempotent `ApprovalGate` of type `AutoGreenlight` through `ApprovalService`; below-band scores take no downstream action.
+- Dry-run records `planned_script` in `AutomationRun.meta` and creates no `VideoScript`.
+- Threshold guardrails force auto-greenlight to `>= 85` and review to `60–84`, even if an environment value is unsafe.
+- No G-02 code imports or calls a paid AI/embedding provider. There are therefore no `BudgetGuard::authorize()` calls, no `ai_usage_ledger` rows, and no external HTTP requests.
+
+### 12.3 Test gate
+
+```text
+$ php artisan test
+Tests: 205 passed (883 assertions)
+Duration: 57.69s
+```
+
+```text
+$ php artisan test tests/Feature/NewsScoringServiceTest.php \
+    tests/Feature/StoryClusteringServiceTest.php \
+    tests/Feature/AutoGreenlightServiceTest.php \
+    tests/Feature/TriageStagesTest.php \
+    tests/Feature/TriageFilamentResourceTest.php \
+    tests/Feature/TriageResourceMissingTableTest.php \
+    tests/Feature/StudioTriageTest.php \
+    tests/Feature/TriageDiagnosticsTest.php
+Tests: 22 passed (255 assertions)
+Duration: 3.75s
+```
+
+- Every G-02 unit/feature class calls `Http::preventStrayRequests()`; tests also assert no requests were sent.
+- Full suite baseline before G-02: `183 passed / 625 assertions`; after G-02: `205 passed / 883 assertions`.
+
+### 12.4 Diagnostics output (exact, read-only)
+
+```text
+=== AI-PVG DIAGNOSTICS (READ-ONLY) ===
+Migrations table: OK
+Queue connection: database
+Remotion CLI: YES
+Chrome headless: YES
+FFprobe: YES
+FFmpeg: YES
+Output dir writable: YES
+AI provider configured: NO
+TTS provider: mock
+YouTube configured: NO
+DB records: news=1; scripts=0; renders=0; youtube_publishing_states=0
+Automation enabled: NO (dry-run: YES)
+Automation tables: 7/7 OK
+Automation runs: total=0; pending=0; running=0; paused=0; completed=0; failed=0; cancelled=0
+Automation stages: total=0
+AI usage ledger: entries=0; cost_micros=0
+Budget: period=not-initialized; limit_micros=5000000; spent_micros=0; reserved_micros=0; remaining_micros=5000000; breaker=closed
+Approvals: pending=0; approved=0; rejected=0; expired=0; dual_public_publish=NO
+Provider health: events_24h=0; providers=none; last=none
+Feature flags: total=0; enabled=0
+Triage enabled: NO (flag=triage.news_scoring_enabled)
+Triage tables: 3/3 OK
+Triage data: news_scores=0; story_clusters=0; story_cluster_news=0
+=== END DIAGNOSTICS ===
+```
+
+### 12.5 Development database preservation
+
+```text
+news=1
+video_renders=0
+youtube_publishing_states=0
+news_scores=0
+story_clusters=0
+story_cluster_news=0
+automation_runs=0
+approval_gates=0
+ai_usage_ledger=0
+```
+
+### 12.6 Safety attestations
+
+- Only the three additive G-02 migrations were applied to the dev SQLite database.
+- No `migrate:fresh`, `db:wipe`, or seeder was run against the dev database.
+- The existing `news=1` row was not scored, updated, deleted, or otherwise mutated outside the isolated `:memory:` test database.
+- No external network call, paid provider call, live YouTube upload, public publish, or real model invocation occurred.

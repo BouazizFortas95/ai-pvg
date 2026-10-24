@@ -2,11 +2,20 @@
 
 namespace App\Livewire;
 
+use App\Enums\UserRole;
 use App\Models\News;
+use App\Models\NewsScore;
+use App\Models\StoryCluster;
 use App\Models\VideoScript;
+use App\Services\Automation\Greenlight\AutoGreenlightService;
+use App\Services\Automation\Triage\TriageGate;
 use App\Services\ThemeEngine;
+use Illuminate\Support\Facades\Schema;
+use Livewire\Attributes\Layout;
 use Livewire\Component;
+use Throwable;
 
+#[Layout('layouts.blank')]
 class StudioDashboard extends Component
 {
     public string $themeName = 'Cyber Dark';
@@ -14,6 +23,8 @@ class StudioDashboard extends Component
     public string $primaryColor = '#00d4ff';
 
     public string $mode = 'dark';
+
+    public string $triageMessage = '';
 
     public function mount(): void
     {
@@ -52,12 +63,77 @@ class StudioDashboard extends Component
         }
     }
 
+    public function generateScript(int $clusterId): void
+    {
+        $user = auth()->user();
+
+        if ($user === null || $user->role !== UserRole::Admin) {
+            $this->triageMessage = 'Only administrators can request a triage script.';
+
+            return;
+        }
+
+        if (! Schema::hasTable('story_clusters') || ! Schema::hasTable('story_cluster_news')) {
+            $this->triageMessage = 'Triage tables are not available. Run the additive migrations first.';
+
+            return;
+        }
+
+        $gate = app(TriageGate::class);
+
+        if (! $gate->enabled()) {
+            $this->triageMessage = 'Triage is disabled. Enable automation.triage.enabled or the triage feature flag first.';
+
+            return;
+        }
+
+        $cluster = StoryCluster::query()->with(['news.newsScore'])->find($clusterId);
+
+        if ($cluster === null) {
+            $this->triageMessage = 'Story cluster not found.';
+
+            return;
+        }
+
+        try {
+            $result = app(AutoGreenlightService::class)->evaluateCluster($cluster);
+            $this->triageMessage = $result->message;
+        } catch (Throwable $exception) {
+            $this->triageMessage = 'Triage action failed: '.$exception->getMessage();
+        }
+    }
+
     public function render()
     {
+        $triageEnabled = app(TriageGate::class)->enabled();
+        $triageScores = collect();
+        $triageClusters = collect();
+
+        if (Schema::hasTable('news_scores') && Schema::hasTable('news')) {
+            $triageScores = NewsScore::query()
+                ->with('news')
+                ->orderByDesc('composite_score')
+                ->limit(10)
+                ->get();
+        }
+
+        if (Schema::hasTable('story_clusters')
+            && Schema::hasTable('story_cluster_news')
+            && Schema::hasTable('news')) {
+            $triageClusters = StoryCluster::query()
+                ->with(['news.newsScore', 'news.source'])
+                ->orderByDesc('window_end')
+                ->limit(10)
+                ->get();
+        }
+
         return view('studio.dashboard', [
             'stats' => $this->stats,
-            'scripts' => VideoScript::with(['news','videoRender','voiceGenerations','videoExports'])->latest()->take(5)->get(),
+            'scripts' => VideoScript::with('news')->latest()->take(5)->get(),
             'news' => News::latest()->take(5)->get(),
+            'triageEnabled' => $triageEnabled,
+            'triageScores' => $triageScores,
+            'triageClusters' => $triageClusters,
         ]);
     }
 }

@@ -17,17 +17,31 @@ body { margin:0; font-family:'Segoe UI',system-ui,sans-serif; background:var(--b
 .studio-card .label { color:rgba(255,255,255,0.5); font-size:.85rem; }
 .studio-actions { padding:0 2rem 2rem; }
 .btn { background:var(--primary); color:#0f172a; border:none; padding:.6rem 1.25rem; border-radius:var(--radius); cursor:pointer; font-weight:600; }
+.btn:disabled { opacity:.5; cursor:not-allowed; }
+.triage-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(340px,1fr)); gap:1.25rem; padding:0 2rem 2rem; }
+.triage-row { margin-top:.75rem; padding:1rem; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.06); border-radius:var(--radius); }
+.triage-row ul { margin:.5rem 0; padding-left:1.1rem; color:rgba(255,255,255,0.72); font-size:.82rem; }
+.triage-row li { margin:.2rem 0; }
+.triage-meta { color:rgba(255,255,255,0.58); font-size:.8rem; margin-top:.35rem; }
+.triage-badge { display:inline-block; padding:.15rem .5rem; border-radius:999px; font-size:.72rem; font-weight:700; background:rgba(0,212,255,0.14); color:var(--primary); }
+.triage-badge.warning { background:rgba(245,158,11,0.16); color:#fbbf24; }
+.triage-badge.muted { background:rgba(148,163,184,0.16); color:#cbd5e1; }
+.triage-note { margin:0 2rem 1rem; color:rgba(255,255,255,0.58); font-size:.85rem; }
+.triage-message { margin:0 2rem 1rem; padding:.75rem 1rem; border:1px solid rgba(0,212,255,0.28); background:rgba(0,212,255,0.08); border-radius:var(--radius); font-size:.88rem; }
+pre.breakdown { white-space:pre-wrap; word-break:break-word; max-height:220px; overflow:auto; background:rgba(0,0,0,0.28); border-radius:6px; padding:.6rem; font-size:.72rem; color:#cbd5e1; }
 .theme-form { display:flex; gap:.75rem; flex-wrap:wrap; align-items:center; margin-top:1rem; }
 .theme-form label { font-size:.85rem; color:rgba(255,255,255,0.7); }
 .theme-form input[type="color"], .theme-form input[type="text"], .theme-form select { background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); color:var(--text); padding:.35rem .6rem; border-radius:var(--radius); }
 </style>
 </head>
 <body>
+<div id="studio-app">
 <header class="studio-header">
 <div class="studio-logo">AI-PVG Studio</div>
 <div>
 @auth
-<a href="{{ route('filament.admin.pages.dashboard') }}" style="color:var(--accent); text-decoration:none; font-weight:500;">Admin Panel</a>
+@php($adminUrl = \Illuminate\Support\Facades\Route::has('filament.admin.pages.dashboard') ? route('filament.admin.pages.dashboard') : '/auth')
+<a href="{{ $adminUrl }}" style="color:var(--accent); text-decoration:none; font-weight:500;">Admin Panel</a>
 @else
 <a href="/auth/login" style="color:var(--accent); text-decoration:none; font-weight:500;">Login</a>
 @endauth
@@ -40,6 +54,54 @@ body { margin:0; font-family:'Segoe UI',system-ui,sans-serif; background:var(--b
 <div class="studio-card"><h3>Generated</h3><div class="stat">{{ $stats['script_generated'] }}</div><div class="label">Scripts with generated narration and scenes</div></div>
 <div class="studio-card"><h3>Approved</h3><div class="stat">{{ $stats['script_approved'] }}</div><div class="label">Administrator-approved video scripts</div></div>
 <div class="studio-card"><h3>Pending</h3><div class="stat">{{ $stats['script_pending'] }}</div><div class="label">Draft scripts awaiting generation</div></div>
+</div>
+
+<div style="padding:0 2rem;">
+<h2>News Triage</h2>
+</div>
+<p class="triage-note">Read-only score and cluster inspection. The only action here creates at most one draft script; dry-run records a plan without touching production scripts. No publishing controls are exposed.</p>
+@if($triageMessage !== '')
+<div class="triage-message">{{ $triageMessage }}</div>
+@endif
+@if(! $triageEnabled)
+<p class="triage-note">Triage is currently disabled. Enable <code>automation.triage.enabled</code> or the <code>triage.news_scoring_enabled</code> feature flag to run the action.</p>
+@endif
+<div class="triage-grid">
+<div class="studio-card">
+<h3>Top Scored Stories</h3>
+@forelse($triageScores as $score)
+<div class="triage-row">
+<strong>{{ $score->news?->title ?? 'News #'.$score->news_id }}</strong>
+<span class="triage-badge {{ $score->band?->value === 'review' ? 'warning' : ($score->band?->value === 'below_threshold' ? 'muted' : '') }}">{{ $score->band?->getLabel() ?? 'Unscored' }}</span>
+<div class="triage-meta">Composite {{ number_format((float) $score->composite_score, 2) }} · scored {{ $score->scored_at?->diffForHumans() ?? '—' }}</div>
+<div class="triage-meta">Velocity {{ number_format((float) $score->velocity_score, 2) }} · Heat {{ number_format((float) $score->keyword_heat_score, 2) }} · Novelty {{ number_format((float) $score->novelty_score, 2) }} · Diversity {{ number_format((float) $score->source_diversity_score, 2) }} · Recency {{ number_format((float) $score->recency_score, 2) }}</div>
+<details style="margin-top:.5rem;"><summary style="cursor:pointer; color:var(--primary); font-size:.82rem;">Score breakdown</summary><pre class="breakdown">{{ (string) json_encode($score->breakdown ?? [], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) }}</pre></details>
+</div>
+@empty
+<p style="color:rgba(255,255,255,0.5);">No scored stories yet.</p>
+@endforelse
+</div>
+
+<div class="studio-card">
+<h3>Story Clusters</h3>
+@forelse($triageClusters as $cluster)
+<div class="triage-row">
+<strong>{{ $cluster->canonical_title }}</strong>
+<div class="triage-meta">{{ $cluster->source_count }} sources · max score {{ number_format($cluster->maxCompositeScore(), 2) }} · confidence {{ number_format((float) $cluster->confidence, 2) }}</div>
+<ul>
+@foreach($cluster->news as $member)
+<li>#{{ $member->id }} {{ $member->title }} — {{ $member->source?->name ?? $member->source_name ?? 'unknown source' }}@if($member->pivot?->is_primary) <strong>(primary)</strong>@endif</li>
+@endforeach
+</ul>
+<details style="margin-top:.5rem;"><summary style="cursor:pointer; color:var(--primary); font-size:.82rem;">Grounded fact sheet</summary><pre class="breakdown">{{ (string) json_encode($cluster->fact_sheet ?? [], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) }}</pre></details>
+@if($triageEnabled)
+<button class="btn" type="button" wire:click="generateScript({{ $cluster->id }})" wire:loading.attr="disabled" style="margin-top:.6rem;">Generate script</button>
+@endif
+</div>
+@empty
+<p style="color:rgba(255,255,255,0.5);">No 3–5 source clusters yet.</p>
+@endforelse
+</div>
 </div>
 
 <div class="studio-actions">
@@ -69,6 +131,7 @@ body { margin:0; font-family:'Segoe UI',system-ui,sans-serif; background:var(--b
 </div>
 @endforeach
 @endif
+</div>
 </div>
 </body>
 </html>

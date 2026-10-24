@@ -6,6 +6,9 @@ use App\Enums\NewsStatus;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class News extends Model
 {
@@ -103,8 +106,20 @@ class News extends Model
         return $this->source();
     }
 
-    public function videoScripts(): \Illuminate\Database\Eloquent\Relations\HasMany
+    public function videoScripts(): HasMany
     {
         return $this->hasMany(VideoScript::class);
+    }
+
+    public function newsScore(): HasOne
+    {
+        return $this->hasOne(NewsScore::class);
+    }
+
+    public function storyClusters(): BelongsToMany
+    {
+        return $this->belongsToMany(StoryCluster::class, 'story_cluster_news')
+            ->withPivot(['similarity', 'is_primary'])
+            ->withTimestamps();
     }
 }

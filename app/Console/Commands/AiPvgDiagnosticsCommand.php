@@ -6,6 +6,7 @@ use App\Models\News;
 use App\Models\VideoRender;
 use App\Models\VideoScript;
 use App\Services\Automation\BudgetGuard;
+use App\Services\Automation\Triage\TriageGate;
 use App\Support\RemotionRuntime;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
@@ -38,6 +39,7 @@ class AiPvgDiagnosticsCommand extends Command
             .'; youtube_publishing_states='.$this->tableCount('youtube_publishing_states'));
 
         $this->diagnoseAutomation($budgetGuard);
+        $this->diagnoseTriage();
 
         $this->info('=== END DIAGNOSTICS ===');
 
@@ -152,6 +154,36 @@ class AiPvgDiagnosticsCommand extends Command
                 .'; enabled='.DB::table('feature_flags')->where('enabled', true)->count());
         } else {
             $this->line('Feature flags: unavailable (table missing)');
+        }
+    }
+
+    private function diagnoseTriage(): void
+    {
+        $tables = ['news_scores', 'story_clusters', 'story_cluster_news'];
+        $present = [];
+        $missing = [];
+
+        foreach ($tables as $table) {
+            if (Schema::hasTable($table)) {
+                $present[] = $table;
+            } else {
+                $missing[] = $table;
+            }
+        }
+
+        $gate = app(TriageGate::class);
+
+        $this->line('Triage enabled: '.($gate->enabled() ? 'YES' : 'NO')
+            .' (flag='.$gate->flagKey().')');
+        $this->line('Triage tables: '.count($present).'/'.count($tables).' OK'
+            .($missing === [] ? '' : '; missing='.implode(',', $missing)));
+
+        if ($missing === []) {
+            $this->line('Triage data: news_scores='.$this->tableCount('news_scores')
+                .'; story_clusters='.$this->tableCount('story_clusters')
+                .'; story_cluster_news='.$this->tableCount('story_cluster_news'));
+        } else {
+            $this->line('Triage data: unavailable (tables missing)');
         }
     }
 

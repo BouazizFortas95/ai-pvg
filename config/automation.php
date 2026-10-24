@@ -77,9 +77,32 @@ return [
     */
     'pipelines' => [],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Triage (Pillar 1)
+    |--------------------------------------------------------------------------
+    |
+    | G-02 is opt-in. The config value is the default when no database
+    | feature flag exists; a stored flag can override it. Both default to off.
+    |
+    */
+    'triage' => [
+        'enabled' => (bool) env('AUTOMATION_TRIAGE_ENABLED', false),
+        'feature_flag' => env('AUTOMATION_TRIAGE_FEATURE_FLAG', 'triage.news_scoring_enabled'),
+        'language' => env('AUTOMATION_TRIAGE_LANGUAGE', 'en'),
+        'target_duration' => (int) env('AUTOMATION_TRIAGE_TARGET_DURATION', 45),
+    ],
+
     'news_scoring' => [
+        'auto_greenlight_min' => (int) env('AUTOMATION_AUTO_GREENLIGHT_MIN', 85),
+        'review_band_min' => (int) env('AUTOMATION_REVIEW_BAND_MIN', 60),
+        // Retained as a backwards-compatible alias for the original G-01 draft.
         'min_auto_greenlight' => (int) env('AUTOMATION_AUTO_GREENLIGHT_MIN', 85),
         'velocity_window_hours' => (int) env('AUTOMATION_VELOCITY_WINDOW_HOURS', 12),
+        'velocity_target_sources' => (int) env('AUTOMATION_VELOCITY_TARGET_SOURCES', 5),
+        'coverage_similarity_threshold' => (float) env('AUTOMATION_COVERAGE_SIMILARITY', 0.35),
+        'recency_half_life_hours' => (int) env('AUTOMATION_RECENCY_HALF_LIFE_HOURS', 24),
+        'novelty_window_days' => (int) env('AUTOMATION_NOVELTY_WINDOW_DAYS', 7),
         'cluster_similarity_threshold' => (float) env('AUTOMATION_CLUSTER_SIMILARITY', 0.82),
         'weights' => [
             'velocity' => 0.35,
@@ -88,6 +111,36 @@ return [
             'source_diversity' => 0.10,
             'recency' => 0.10,
         ],
+        'keyword_weights' => [
+            'breaking' => 20,
+            'exclusive' => 18,
+            'launch' => 15,
+            'ai' => 10,
+            'openai' => 12,
+            'security' => 12,
+            'breach' => 15,
+            'lawsuit' => 12,
+            'acquisition' => 15,
+            'earnings' => 10,
+            'election' => 12,
+            'climate' => 10,
+            'crisis' => 15,
+            'record' => 10,
+            'viral' => 12,
+            'leak' => 12,
+            'regulation' => 10,
+            'funding' => 12,
+            'chip' => 10,
+            'model' => 8,
+        ],
+    ],
+
+    'story_clustering' => [
+        'window_hours' => (int) env('AUTOMATION_CLUSTER_WINDOW_HOURS', 48),
+        'candidate_limit' => (int) env('AUTOMATION_CLUSTER_CANDIDATE_LIMIT', 200),
+        'similarity_threshold' => (float) env('AUTOMATION_CLUSTER_SIMILARITY', 0.82),
+        'min_sources' => (int) env('AUTOMATION_CLUSTER_MIN_SOURCES', 3),
+        'max_sources' => (int) env('AUTOMATION_CLUSTER_MAX_SOURCES', 5),
     ],
 
     'render' => [

@@ -1,8 +1,8 @@
 # AI-PVG — Project Roadmap
 
-**Status:** Active roadmap — G-00 complete, G-01 complete, G-02 pre-flight next
-**Baseline:** Tasks 01–10.6 · G-00 verified · G-01 verified 2026-10-24
-**Current suite:** 183 tests / 625 assertions / 0 failures
+**Status:** Active roadmap — G-00, G-01, G-02 complete; G-03 pre-flight next
+**Baseline:** Tasks 01–10.6 · G-00 verified · G-01 verified · G-02 verified 2026-10-24
+**Current suite:** 205 tests / 883 assertions / 0 failures
 **Companion architecture:** `AUTOMATION_EXPANSION_PROPOSAL.md`
 **Safety:** Every task is additive, config-gated, dry-run capable, budget-bounded, and HITL-aware. No automatic public publishing. No destructive migrations.
 
@@ -56,17 +56,24 @@
 ### G-02 — News Scoring, Clustering & Auto-Greenlight
 - **Phase:** G
 - **Priority:** P1
-- **Status:** Proposed — pre-flight blueprint ready
+- **Status:** **Done — verified 2026-10-24**
 - **Depends on:** G-01
 - **Objective:** Rank news by velocity/heat/novelty/diversity, cluster multi-source stories, auto-greenlight above threshold.
-- **In scope:** `news_scores`, `story_clusters`, `story_cluster_news`; scoring/clustering/greenlight services; jobs; scheduler; Filament + Studio triage UI.
-- **Out of scope:** paid trend APIs; automatic publishing.
-- **Deliverables:** migrations, services, jobs, scheduler entries, resources, tests.
-- **Data:** additive.
-- **Acceptance criteria:** reproducible score breakdown; 3–5 source cluster cap; no duplicate scripts; dry-run safe.
-- **Test gate:** unit scoring/clustering; feature auto-greenlight; no network.
-- **Rollback:** disable jobs; historical scores retained.
-- **Risks:** false merges; mitigate with HITL review band.
+- **In scope:** `news_scores`, `story_clusters`, `story_cluster_news`; deterministic scoring/clustering/greenlight services; orchestrator stage classes; read-only Filament resources; Studio Triage panel. No autonomous G-02 job or scheduler entry was added; execution remains manual/flag-gated.
+- **Out of scope:** paid trend APIs; automatic publishing; G-03 script agents; captions; asset harvesting; multi-format fan-out.
+- **Deliverables:** three additive migrations; `TriageBand`, `StoryClusterStatus`, `TriageDisabledException`; `NewsScore`, `StoryCluster`, `StoryClusterNews`; `TriageGate`, `TextSimilarityService`, `NewsScoringService`, `StoryClusteringService`, `AutoGreenlightService`, `GreenlightResult`; `ScoreNewsStage`, `ClusterStoriesStage`, `AutoGreenlightStage`; read-only `NewsScoreResource` / `StoryClusterResource`; Studio Triage panel; diagnostics; tests; docs.
+- **Data:** additive only. Migration range `2026_10_24_130000`–`2026_10_24_130200`. Dev data preserved: `news=1`, `video_renders=0`, `youtube_publishing_states=0`; `news_scores=0`, `story_clusters=0`, `story_cluster_news=0`.
+- **Acceptance criteria:** reproducible score breakdown; 3–5 distinct-source cluster cap; every claim/bullet grounded in member `news_id`; auto-greenlight band `>= 85`, review band `60–84`, below band inert; one idempotent draft script or dry-run plan; idempotent review gate; feature flag off by default; no duplicate scripts; no network calls.
+- **Evidence:**
+  - Scoring stores all five component scores, weighted contributions, thresholds, evidence, explanations, and composite/band in `news_scores.breakdown`.
+  - Clustering defaults to offline token/TF-IDF cosine similarity with zero HTTP or paid calls; persisted clusters are limited to 3–5 distinct sources; ungrounded fact-sheet items are stripped.
+  - Auto-greenlight uses pipeline `triage.auto_greenlight`, subject `StoryCluster`, active window `cluster-{id}`; reruns return the same run/script. Dry-run stores `planned_script` in `AutomationRun.meta` and creates no `VideoScript`.
+  - Review-band clusters open an idempotent `ApprovalGate` of type `AutoGreenlight` through `ApprovalService`; below-band clusters create no downstream records.
+  - Studio action is admin-only, fails closed when triage/tables are unavailable, and exposes no publishing controls.
+  - G-02 suite: **22 passed / 255 assertions**; full suite: **205 passed / 883 assertions / 0 failures / 0 risky**.
+- **Test gate:** every G-02 unit/feature class calls `Http::preventStrayRequests()`; tests assert no requests were sent; no real provider, upload, or publishing action.
+- **Rollback:** set `AUTOMATION_TRIAGE_ENABLED=false` / flag false; historical scores and clusters remain inert.
+- **Risks:** false merges; mitigate with the 3–5 source cap, confidence/attribution, and HITL review band.
 
 ### G-03 — Multi-Agent Script & Scene Directives
 - **Phase:** G
@@ -203,7 +210,7 @@
 | Gate | Requirement | Status |
 |------|-------------|--------|
 | G-A | G-00 produces a genuine FFprobe-verified MP4 | **Passed** (video + synthetic audio; 2026-10-24) |
-| G-B | G-01..G-03 pass mocked tests + dry-run pilot | **In progress** — G-01 passed; G-02/G-03 pending |
+| G-B | G-01..G-03 pass mocked tests + dry-run pilot | **In progress** — G-01 and G-02 passed; G-03 pending |
 | G-C | G-04..G-08 pass opt-in integration tests | Proposed |
 | H-A | H-01..H-03 pass privacy/authorization review | Proposed |
 
