@@ -227,6 +227,14 @@ class AiPvgDiagnosticsCommand extends Command
         } else {
             $this->line('Script agent data: unavailable (tables missing)');
         }
+
+        $captionTables = ['caption_tracks', 'audio_assets'];
+        $captionPresent = array_filter($captionTables, fn ($t) => Schema::hasTable($t));
+        $this->line('Caption agents enabled: '.(config('automation.captions.enabled', false) ? 'YES' : 'NO')
+            .' (flag='.config('automation.captions.feature_flag').'; lang='.config('automation.captions.language_default', 'en').')');
+        $this->line('Caption tables: '.count($captionPresent).'/'.count($captionTables).' OK');
+        $this->line('Caption data: caption_tracks='.$this->tableCount('caption_tracks')
+            .'; audio_assets='.$this->tableCount('audio_assets'));
     }
 
     private function tableCount(string $table): int

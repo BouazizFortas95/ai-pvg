@@ -81,6 +81,10 @@ return [
             'compose_script',
             'fact_check_script',
         ],
+        'captions.pipeline' => [
+            'build_captions',
+            'mix_audio',
+        ],
     ],
 
     /*
@@ -147,6 +151,13 @@ return [
         'similarity_threshold' => (float) env('AUTOMATION_CLUSTER_SIMILARITY', 0.82),
         'min_sources' => (int) env('AUTOMATION_CLUSTER_MIN_SOURCES', 3),
         'max_sources' => (int) env('AUTOMATION_CLUSTER_MAX_SOURCES', 5),
+    ],
+
+    'captions' => [
+        'enabled' => (bool) env('AUTOMATION_CAPTIONS_ENABLED', false),
+        'feature_flag' => env('AUTOMATION_CAPTIONS_FEATURE_FLAG', 'captions.enabled'),
+        'language_default' => env('AUTOMATION_CAPTIONS_LANGUAGE', 'en'),
+        'target_duration' => (int) env('AUTOMATION_CAPTIONS_TARGET_DURATION', 45),
     ],
 
     /*

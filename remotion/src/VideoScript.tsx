@@ -25,7 +25,14 @@ export const VideoScript: React.FC<{
   targetDuration: number;
   template?: string;
   audioUrl?: string;
-}> = ({ scenes, title, language, targetDuration, template = 'cyber', audioUrl }) => {
+  captionTrack?: {
+    language: string;
+    wordTimings?: Array<{ word: string; startMs: number; endMs: number; source: 'estimated' | 'verified' }>;
+    chunks?: Array<{ text: string; rtl?: boolean; language: string }>;
+    source?: 'estimated' | 'verified';
+    status?: string;
+  };
+}> = ({ scenes, title, language, targetDuration, template = 'cyber', audioUrl, captionTrack }) => {
   const frame = useCurrentFrame();
   const durationFrames = targetDuration * 30;
   const isRTL = language === 'ar';
@@ -37,6 +44,12 @@ export const VideoScript: React.FC<{
       <AbsoluteFill style={{ padding: 60, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', textAlign: 'center' }}>
         <h1 style={{ fontSize: 48, fontWeight: 900, color: accent, letterSpacing: '-0.04em', marginBottom: 24, lineHeight: 1.1 }}>{title}</h1>
         {audioUrl && <Audio src={audioUrl} volume={0.9} startFrom={0} />}
+        {captionTrack && captionTrack.source && (
+          <div style={{ position: 'absolute', bottom: 80, left: 40, right: 40, direction: captionTrack.language === 'ar' ? 'rtl' : 'ltr', color: '#fff', fontSize: 22, fontWeight: 600, textAlign: 'center', background: 'rgba(0,0,0,0.55)', borderRadius: 8, padding: '12px 16px', pointerEvents: 'none' }}>
+            <span style={{ opacity: 0.9, fontSize: 12, display: 'block', marginBottom: 4 }}>{captionTrack.source === 'verified' ? 'Verified' : 'Estimated'} • {captionTrack.language.toUpperCase()}</span>
+            {captionTrack.chunks && captionTrack.chunks[0]?.text}
+          </div>
+        )}
         <p style={{ fontSize: 20, opacity: 0.8 }}>{language.toUpperCase()} • {targetDuration}s</p>
         <div style={{ marginTop: 40, display: 'flex', gap: 20, flexWrap: 'wrap', justifyContent: 'center' }}>
           {scenes.map((s) => (
