@@ -85,6 +85,15 @@ return [
             'build_captions',
             'mix_audio',
         ],
+        'assets.pipeline' => [
+            'harvest_assets',
+            'inject_scene_props',
+        ],
+        'formats.pipeline' => [
+            'harvest_assets',
+            'build_thumbnail',
+            'plan_fanout',
+        ],
     ],
 
     /*
@@ -158,6 +167,14 @@ return [
         'feature_flag' => env('AUTOMATION_CAPTIONS_FEATURE_FLAG', 'captions.enabled'),
         'language_default' => env('AUTOMATION_CAPTIONS_LANGUAGE', 'en'),
         'target_duration' => (int) env('AUTOMATION_CAPTIONS_TARGET_DURATION', 45),
+    ],
+
+    'assets' => [
+        'enabled' => (bool) env('AUTOMATION_ASSETS_ENABLED', false),
+        'feature_flag' => env('AUTOMATION_ASSETS_FEATURE_FLAG', 'assets.enabled'),
+        'allowed_domains' => array_filter(explode(',', env('AUTOMATION_ASSETS_ALLOWED_DOMAINS', ''))),
+        'max_bytes' => (int) env('AUTOMATION_ASSETS_MAX_BYTES', 50_000_000),
+        'mime_allowlist' => ['image/jpeg', 'image/png', 'image/webp', 'video/mp4'],
     ],
 
     /*

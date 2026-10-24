@@ -235,6 +235,21 @@ class AiPvgDiagnosticsCommand extends Command
         $this->line('Caption tables: '.count($captionPresent).'/'.count($captionTables).' OK');
         $this->line('Caption data: caption_tracks='.$this->tableCount('caption_tracks')
             .'; audio_assets='.$this->tableCount('audio_assets'));
+
+        $assetTables = ['visual_assets', 'scene_assets'];
+        $assetPresent = array_filter($assetTables, fn ($t) => Schema::hasTable($t));
+        $this->line('Visual assets enabled: '.(config('automation.assets.enabled', false) ? 'YES' : 'NO')
+            .' (flag='.config('automation.assets.feature_flag').'; allowed='.count(config('automation.assets.allowed_domains', [])).')');
+        $this->line('Visual asset tables: '.count($assetPresent).'/'.count($assetTables).' OK');
+        $this->line('Visual asset data: visual_assets='.$this->tableCount('visual_assets')
+            .'; scene_assets='.$this->tableCount('scene_assets'));
+
+        $pubTables = ['publishing_approval_sessions', 'co_pilot_review_sessions'];
+        $pubPresent = array_filter($pubTables, fn ($t) => Schema::hasTable($t));
+        $this->line('Publishing / Co-Pilot enabled: '.(config('automation.publishing.enabled', false) ? 'YES' : 'NO'));
+        $this->line('Publishing / Co-Pilot tables: '.count($pubPresent).'/'.count($pubTables).' OK');
+        $this->line('Publishing / Co-Pilot data: approval_sessions='.$this->tableCount('publishing_approval_sessions')
+            .'; co_pilot_sessions='.$this->tableCount('co_pilot_review_sessions'));
     }
 
     private function tableCount(string $table): int
