@@ -1,12 +1,12 @@
 # AI-PVG — Hyper-Automation & Autonomous Intelligence Expansion Plan
 
 **File:** `AUTOMATION_EXPANSION_PROPOSAL.md`
-**Status:** G-00 approved/verified; G-01 and G-02 implemented and verified; G-03+ proposed.
+**Status:** G-00 approved/verified; G-01, G-02, and G-03 implemented and verified; G-04+ proposed.
 **Author role:** Principal AI Systems Architect / Lead Laravel 12 Engineer / Media Automation Strategist
 **Date:** 2026-10-24
-**Baseline:** Tasks 01–10.6 · G-00 verified · G-01 verified · G-02 verified 2026-10-24 — 205 tests / 883 assertions / 0 failures / 0 risky.
+**Baseline:** Tasks 01–10.6 · G-00 verified · G-01 verified · G-02 verified · G-03 verified 2026-10-24 — 241 tests / 1176 assertions / 0 failures / 0 risky.
 
-> **Scope statement:** This document defines the modular Phase G and Phase H roadmap. G-01 and G-02 are implemented dark (`AUTOMATION_ENABLED=false`, `AUTOMATION_DRY_RUN=true`, `AUTOMATION_TRIAGE_ENABLED=false`); G-03+ remains proposed. Every automation described here is opt-in, config-gated, dry-run-capable, budget-bounded, and HITL-aware.
+> **Scope statement:** This document defines the modular Phase G and Phase H roadmap. G-01, G-02, and G-03 are implemented dark (`AUTOMATION_ENABLED=false`, `AUTOMATION_DRY_RUN=true`, `AUTOMATION_TRIAGE_ENABLED=false`, `automation.script_agents.enabled=false`); G-04+ remains proposed. Every automation described here is opt-in, config-gated, dry-run-capable, budget-bounded, and HITL-aware.
 
 ---
 
@@ -791,14 +791,26 @@ Jobs are individually dispatched; there is no end-to-end orchestrator, no run da
 
 - **Phase:** G
 - **Priority:** P1
+- **Status:** **Done — verified 2026-10-24**
 - **Depends on:** G-01, G-02
 - **Objective:** Hook → Narrative → Fact-Check chain with scene directives and critic blocking.
-- **In scope:** `script_variants`, `script_fact_checks`; agents; orchestrator; validator; Filament relation managers; Studio hook selection.
-- **Out of scope:** image/video asset logic; captions.
-- **Acceptance criteria:** 3 hooks; duration ±5s; unsupported claim blocks auto-approval; optional directives ignored by old consumers.
-- **Test gate:** mocked AI responses; prompt parser fixtures; fact-check blocking.
-- **Rollback:** feature flag reverts to `VideoScriptGenerator` single prompt.
-- **Risks:** prompt drift; mitigate with golden fixtures and temperature caps.
+- **In scope:** `script_variants`, `script_fact_checks`; deterministic hook/narrative/fact-check agents; orchestrator stages; strict directive validator; read-only Filament resources; Studio hook selection, directive preview/diff, and fact-check review. No autonomous G-03 job or scheduler entry was added; execution remains manual/flag-gated.
+- **Out of scope:** image/video asset logic; captions; multi-format fan-out; publishing.
+- **Deliverables:** two additive migrations; script-variant/hook/verdict enums; `ScriptVariant`, `ScriptFactCheck`; `ScriptSource`, `ScriptSourceFactory`, `ScriptAgentsGate`, `ScriptAgentAiClient`, `DirectiveValidator`, `HookSpecialistAgent`, `NarrativeArchitectAgent`, `FactCheckerAgent`, `ScriptPipelineService`; `GenerateScriptVariantsStage`, `ComposeScriptStage`, `FactCheckScriptStage`; `ScriptVariantResource`, `ScriptFactCheckResource`; Studio review panel; diagnostics; Remotion optional directive fields; tests; documentation.
+- **Data:** additive only (`2026_10_24_140000`–`2026_10_24_140100`). Dev DB preserved: `news=1`, `video_renders=0`, `youtube_publishing_states=0`; `script_variants=0`, `script_fact_checks=0`.
+- **Acceptance criteria:** exactly three distinct grounded hooks with deterministic `hook_index` `1..3` and explicit `source_news_ids`; strict directive schema with total duration within target ±5s; unsupported/uncertain claims block auto-approval and open a review gate; approved scripts never overwritten; legacy scenes render unchanged; dual gate off by default; dry-run performs zero paid calls and zero production script mutations; idempotent reruns create no duplicates; no network calls.
+- **Evidence:**
+  - Deterministic grounded hooks (three distinct, indexed `1..3`); duplicates or a short set throw before persistence.
+  - Active window `cluster-{id}:g03-v1` or `news-{id}:g03-v1`; reruns return the existing run/script/variants.
+  - Strict per-scene directive schema and ±5s total-duration tolerance; legacy scenes without directives pass through unchanged.
+  - Every claim persisted with `supported|unsupported|uncertain`, `source_news_ids`, and evidence; blocking verdicts open an `ApprovalGate` of type `ScriptFactCheck` and keep the script in `Draft`.
+  - Optional external AI is off by default and, when enabled, passes `BudgetGuard::authorize()`, `DryRunContext`, and `ai_usage_ledger` with purpose `Script` or `Critic`.
+  - Dry-run returns labeled plans (`planned_variants`, `planned_scenes`, `planned_fact_checks`) and mutates no production `VideoScript`.
+  - Studio hook selection is admin-only and refuses approved scripts; no publishing controls; resources fail closed when tables are missing.
+  - G-03 suite: **36 passed / 293 assertions**; full suite: **241 passed / 1176 assertions / 0 failures / 0 risky**.
+- **Test gate:** every G-03 unit/feature class uses `Http::preventStrayRequests()` or an explicit `Http::fake()`; no external calls in tests.
+- **Rollback:** disable `automation.script_agents.enabled` and the `script_agents.enabled` flag; `VideoScriptGenerator` single-prompt remains the fallback and the additive tables stay inert.
+- **Risks:** prompt drift and hallucinated claims; mitigate with deterministic local agents, golden fixtures, strict source grounding, fact-check gating, budget caps, and HITL review.
 
 ### G-04 — Word Captions & Audio Design (Pillar 3)
 
@@ -1034,10 +1046,11 @@ draft → generating → generated → approved
 1. **G-00 first** — real verified MP4 is the gate for all media automation.
 2. **G-01 control plane** — implemented dark (`AUTOMATION_ENABLED=false`) and verified 2026-10-24.
 3. **G-02 news triage** — implemented dark (`AUTOMATION_TRIAGE_ENABLED=false`) with deterministic local scoring/clustering and a dry-run auto-greenlight path; verified 2026-10-24.
-4. **Pillar rollouts** — each behind `feature_flags` + config; canary one pipeline, then expand.
-5. **Dry-run period** — run in dry-run for ≥1 week; compare projected vs actual cost and outputs.
-6. **HITL pilot** — admins only; no auto-publish.
-7. **Rollback** — set flag false; jobs early-return; no data deletion; additive tables remain.
+4. **G-03 script agents** — implemented dark (`automation.script_agents.enabled=false`) with deterministic grounded hooks, strict scene directives, and fact-check gating; verified 2026-10-24.
+5. **Pillar rollouts** — each behind `feature_flags` + config; canary one pipeline, then expand.
+6. **Dry-run period** — run in dry-run for ≥1 week; compare projected vs actual cost and outputs.
+7. **HITL pilot** — admins only; no auto-publish.
+8. **Rollback** — set flag false; jobs early-return; no data deletion; additive tables remain.
 
 ---
 
@@ -1072,7 +1085,7 @@ draft → generating → generated → approved
 | Public uploads without dual approval | 0 |
 
 **Gate G-A:** G-00 passes real FFprobe verification. **PASSED 2026-10-24.**
-**Gate G-B:** G-01..G-03 pass mocked + dry-run pilots. **G-01 and G-02 passed; G-03 pending.**
+**Gate G-B:** G-01..G-03 pass mocked + dry-run pilots. **PASSED 2026-10-24 (G-01, G-02, G-03).**
 **Gate G-C:** G-04..G-08 pass opt-in integration tests.
 **Gate H-A:** H-01..H-03 pass privacy/authorization review.
 
@@ -1195,4 +1208,4 @@ All migrations are **additive**; no column drops, no destructive operations, no 
 
 ---
 
-**End of proposal.** G-00, G-01, and G-02 are approved, implemented, and verified. Implementation of G-03 and later phases requires explicit approval.
+**End of proposal.** G-00, G-01, G-02, and G-03 are approved, implemented, and verified. Implementation of G-04 and later phases requires explicit approval.

@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use App\Models\News;
 use App\Models\VideoRender;
 use App\Models\VideoScript;
+use App\Services\AI\ScriptPipeline\ScriptAgentsGate;
 use App\Services\Automation\BudgetGuard;
 use App\Services\Automation\Triage\TriageGate;
 use App\Support\RemotionRuntime;
@@ -40,6 +41,7 @@ class AiPvgDiagnosticsCommand extends Command
 
         $this->diagnoseAutomation($budgetGuard);
         $this->diagnoseTriage();
+        $this->diagnoseScriptAgents();
 
         $this->info('=== END DIAGNOSTICS ===');
 
@@ -184,6 +186,46 @@ class AiPvgDiagnosticsCommand extends Command
                 .'; story_cluster_news='.$this->tableCount('story_cluster_news'));
         } else {
             $this->line('Triage data: unavailable (tables missing)');
+        }
+    }
+
+    private function diagnoseScriptAgents(): void
+    {
+        $tables = ['script_variants', 'script_fact_checks'];
+        $present = [];
+        $missing = [];
+
+        foreach ($tables as $table) {
+            if (Schema::hasTable($table)) {
+                $present[] = $table;
+            } else {
+                $missing[] = $table;
+            }
+        }
+
+        $gate = app(ScriptAgentsGate::class);
+
+        $this->line('Script agents enabled: '.($gate->enabled() ? 'YES' : 'NO')
+            .' (flag='.$gate->flagKey()
+            .'; use_ai='.(config('automation.script_agents.use_ai') ? 'YES' : 'NO').')');
+        $this->line('Script agent tables: '.count($present).'/'.count($tables).' OK'
+            .($missing === [] ? '' : '; missing='.implode(',', $missing)));
+
+        if ($missing === []) {
+            $hooks = DB::table('script_variants')->where('variant_type', 'hook')->count();
+            $pendingGates = Schema::hasTable('approval_gates')
+                ? DB::table('approval_gates')
+                    ->where('gate_type', 'script_fact_check')
+                    ->where('status', 'pending')
+                    ->count()
+                : 0;
+
+            $this->line('Script agent data: script_variants='.$this->tableCount('script_variants')
+                .'; hooks='.$hooks
+                .'; script_fact_checks='.$this->tableCount('script_fact_checks')
+                .'; pending_fact_check_gates='.$pendingGates);
+        } else {
+            $this->line('Script agent data: unavailable (tables missing)');
         }
     }
 

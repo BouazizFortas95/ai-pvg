@@ -32,6 +32,29 @@ pre.breakdown { white-space:pre-wrap; word-break:break-word; max-height:220px; o
 .theme-form { display:flex; gap:.75rem; flex-wrap:wrap; align-items:center; margin-top:1rem; }
 .theme-form label { font-size:.85rem; color:rgba(255,255,255,0.7); }
 .theme-form input[type="color"], .theme-form input[type="text"], .theme-form select { background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); color:var(--text); padding:.35rem .6rem; border-radius:var(--radius); }
+.script-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(420px,1fr)); gap:1.25rem; padding:0 2rem 2rem; }
+.script-card { background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.06); border-radius:var(--radius); padding:1.25rem; }
+.script-card h4 { margin:0 0 .35rem; font-size:1rem; color:var(--primary); }
+.script-card h5 { margin:1rem 0 .4rem; font-size:.85rem; color:rgba(255,255,255,0.8); text-transform:uppercase; letter-spacing:.04em; }
+.hook-row { margin-top:.6rem; padding:.75rem; background:rgba(0,0,0,0.2); border:1px solid rgba(255,255,255,0.06); border-radius:6px; }
+.hook-row.selected { border-color:rgba(0,212,255,0.5); background:rgba(0,212,255,0.07); }
+.hook-content { margin:.35rem 0; font-size:.9rem; }
+.hook-meta { color:rgba(255,255,255,0.55); font-size:.75rem; }
+.btn.small { padding:.3rem .7rem; font-size:.75rem; margin-top:.4rem; }
+.btn.secondary { background:rgba(255,255,255,0.1); color:var(--text); border:1px solid rgba(255,255,255,0.14); }
+.script-badge { display:inline-block; padding:.12rem .5rem; border-radius:999px; font-size:.7rem; font-weight:700; background:rgba(148,163,184,0.16); color:#cbd5e1; }
+.script-badge.selected { background:rgba(34,197,94,0.16); color:#4ade80; }
+.script-badge.approved { background:rgba(34,197,94,0.16); color:#4ade80; }
+.verdict-badge { display:inline-block; padding:.12rem .5rem; border-radius:999px; font-size:.7rem; font-weight:700; }
+.verdict-badge.supported { background:rgba(34,197,94,0.16); color:#4ade80; }
+.verdict-badge.unsupported { background:rgba(239,68,68,0.18); color:#f87171; }
+.verdict-badge.uncertain { background:rgba(245,158,11,0.18); color:#fbbf24; }
+.fact-row { margin-top:.55rem; padding:.6rem .7rem; border-left:3px solid rgba(148,163,184,0.4); background:rgba(0,0,0,0.18); border-radius:4px; font-size:.8rem; }
+.fact-row.unsupported { border-left-color:#f87171; }
+.fact-row.uncertain { border-left-color:#fbbf24; }
+.directive-table { width:100%; border-collapse:collapse; font-size:.72rem; margin-top:.35rem; }
+.directive-table th { text-align:left; color:rgba(255,255,255,0.5); font-weight:600; padding:.3rem .35rem; border-bottom:1px solid rgba(255,255,255,0.08); }
+.directive-table td { padding:.3rem .35rem; border-bottom:1px solid rgba(255,255,255,0.05); vertical-align:top; color:#cbd5e1; }
 </style>
 </head>
 <body>
@@ -103,6 +126,107 @@ pre.breakdown { white-space:pre-wrap; word-break:break-word; max-height:220px; o
 @endforelse
 </div>
 </div>
+
+<div style="padding:0 2rem;">
+<h2>Script Agents</h2>
+</div>
+<p class="triage-note">Read-only hook and fact-check review. Selecting a hook updates only which generated variant is marked for review; approved scripts are protected and no publishing controls are exposed.</p>
+@if($scriptMessage !== '')
+<div class="triage-message">{{ $scriptMessage }}</div>
+@endif
+@if(! $scriptTablesAvailable)
+<p class="triage-note">Script agent tables are not available. Run the additive G-03 migrations to enable review.</p>
+@elseif($scriptPreviews === [])
+<p class="triage-note">No script variants yet.</p>
+@else
+@if(! $scriptAgentsEnabled)
+<p class="triage-note">Script agents are currently disabled. Enable <code>automation.script_agents.enabled</code> and the <code>script_agents.enabled</code> feature flag to allow hook selection.</p>
+@endif
+<div class="script-grid">
+@foreach($scriptPreviews as $preview)
+@php($script = $preview['script'])
+<div class="script-card">
+<h4>{{ $script->title }}</h4>
+<div class="hook-meta">
+Script #{{ $script->id }} · {{ $script->language }} · {{ $script->target_duration }}s ·
+<span class="script-badge">{{ $script->status?->getLabel() ?? '—' }}</span>
+@if($preview['approved'])
+<span class="script-badge approved">Approved · protected</span>
+@endif
+</div>
+
+<h5>Grounded hooks</h5>
+@foreach($preview['hooks'] as $hook)
+<div class="hook-row {{ $hook->selected ? 'selected' : '' }}">
+<div class="hook-meta">
+#{{ $hook->hook_index }} · {{ $hook->hook_type?->getLabel() ?? 'Hook' }} · score {{ number_format((float) $hook->score, 2) }}
+@if($hook->selected)<span class="script-badge selected">Selected</span>@endif
+</div>
+<div class="hook-content">{{ $hook->content }}</div>
+<div class="hook-meta">Sources: {{ is_array($hook->source_news_ids) && $hook->source_news_ids !== [] ? '#'.implode(', #', $hook->source_news_ids) : '—' }}</div>
+@if($isAdmin)
+<button class="btn small" type="button" wire:click="selectHook({{ $hook->id }})" wire:loading.attr="disabled" @if(! $scriptAgentsEnabled || $preview['approved']) disabled @endif>Select hook</button>
+<button class="btn small secondary" type="button" wire:click="previewHook({{ $hook->id }})" wire:loading.attr="disabled">Preview directives</button>
+@endif
+</div>
+@endforeach
+
+@if($preview['preview'] !== null)
+@php($directivePreview = $preview['preview'])
+<h5>Scene directive preview — hook #{{ $directivePreview['hook_index'] }}</h5>
+@if(! $directivePreview['available'])
+<p class="triage-meta">Preview unavailable: {{ $directivePreview['error'] }}</p>
+@else
+<table class="directive-table">
+<thead><tr><th>#</th><th>Type</th><th>Headline</th><th>Sec</th><th>Camera</th><th>B-roll</th><th>Highlight</th><th>SFX</th><th>Tone</th></tr></thead>
+<tbody>
+@foreach($directivePreview['scenes'] as $scene)
+<tr>
+<td>{{ $scene['order'] ?? '—' }}</td>
+<td>{{ $scene['type'] ?? '—' }}</td>
+<td>{{ $scene['headline'] ?? '—' }}</td>
+<td>{{ $scene['duration'] ?? '—' }}</td>
+<td>{{ $scene['directives']['camera_motion'] ?? '—' }}</td>
+<td>{{ $scene['directives']['b_roll_query'] ?? '—' }}</td>
+<td>{{ $scene['directives']['highlight_text'] ?? '—' }}</td>
+<td>{{ $scene['directives']['sfx_cue'] ?? '—' }}</td>
+<td>{{ $scene['directives']['emotion_tone'] ?? '—' }}</td>
+</tr>
+@endforeach
+</tbody>
+</table>
+@if($directivePreview['diff'] === [])
+<p class="triage-meta">No directive differences between the preview and the persisted scenes.</p>
+@else
+<h5>Directive diff vs persisted script</h5>
+<table class="directive-table">
+<thead><tr><th>Scene</th><th>Field</th><th>Persisted</th><th>Preview</th></tr></thead>
+<tbody>
+@foreach($directivePreview['diff'] as $row)
+<tr><td>{{ $row['scene'] }}</td><td>{{ $row['field'] }}</td><td>{{ $row['persisted'] }}</td><td>{{ $row['preview'] }}</td></tr>
+@endforeach
+</tbody>
+</table>
+@endif
+@endif
+@endif
+
+@if($preview['fact_checks']->isNotEmpty())
+<h5>Fact checks</h5>
+@foreach($preview['fact_checks'] as $check)
+@php($verdict = $check->verdict?->value ?? 'uncertain')
+<div class="fact-row {{ $verdict }}">
+<span class="verdict-badge {{ $verdict }}">{{ $check->verdict?->getLabel() ?? 'Uncertain' }}</span>
+<span style="margin-left:.4rem;">{{ $check->claim }}</span>
+<div class="hook-meta">Sources: {{ is_array($check->source_news_ids) && $check->source_news_ids !== [] ? '#'.implode(', #', $check->source_news_ids) : '—' }} · critic {{ number_format((float) $check->critic_score, 2) }}</div>
+<div class="hook-meta">{{ $check->evidence }}</div>
+</div>
+@endforeach
+@endif
+</div>
+@endforeach
+</div>
+@endif
 
 <div class="studio-actions">
 <h2>Theme Customization</h2>

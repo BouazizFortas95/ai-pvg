@@ -12,6 +12,7 @@ enum ApprovalGateType: string implements HasColor, HasLabel
     case PublicPublish = 'public_publish';
     case AssetLicense = 'asset_license';
     case BulkRender = 'bulk_render';
+    case ScriptFactCheck = 'script_fact_check';
 
     public function getLabel(): ?string
     {
@@ -21,6 +22,7 @@ enum ApprovalGateType: string implements HasColor, HasLabel
             self::PublicPublish => 'Public publish',
             self::AssetLicense => 'Asset license',
             self::BulkRender => 'Bulk render',
+            self::ScriptFactCheck => 'Script fact check',
         };
     }
 
@@ -32,6 +34,7 @@ enum ApprovalGateType: string implements HasColor, HasLabel
             self::PublicPublish => 'danger',
             self::AssetLicense => 'warning',
             self::BulkRender => 'gray',
+            self::ScriptFactCheck => 'warning',
         };
     }
 }

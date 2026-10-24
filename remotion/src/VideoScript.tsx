@@ -9,6 +9,16 @@ export const VideoScript: React.FC<{
     description: string;
     narration: string;
     visual_keywords: string[];
+    claim?: string;
+    source_news_ids?: number[];
+    directives?: {
+      camera_motion?: string;
+      b_roll_query?: string;
+      highlight_text?: string;
+      sfx_cue?: string;
+      emotion_tone?: string;
+      duration_seconds?: number;
+    };
   }>;
   title: string;
   language: string;

@@ -1,8 +1,8 @@
 # AI-PVG — Project Roadmap
 
-**Status:** Active roadmap — G-00, G-01, G-02 complete; G-03 pre-flight next
-**Baseline:** Tasks 01–10.6 · G-00 verified · G-01 verified · G-02 verified 2026-10-24
-**Current suite:** 205 tests / 883 assertions / 0 failures
+**Status:** Active roadmap — G-00, G-01, G-02, G-03 complete; G-04 pre-flight next
+**Baseline:** Tasks 01–10.6 · G-00 verified · G-01 verified · G-02 verified · G-03 verified 2026-10-24
+**Current suite:** 241 tests / 1176 assertions / 0 failures / 0 risky
 **Companion architecture:** `AUTOMATION_EXPANSION_PROPOSAL.md`
 **Safety:** Every task is additive, config-gated, dry-run capable, budget-bounded, and HITL-aware. No automatic public publishing. No destructive migrations.
 
@@ -78,17 +78,26 @@
 ### G-03 — Multi-Agent Script & Scene Directives
 - **Phase:** G
 - **Priority:** P1
-- **Status:** Proposed
+- **Status:** **Done — verified 2026-10-24**
 - **Depends on:** G-01, G-02
 - **Objective:** Hook Specialist → Narrative Architect → Fact-Checker chain; inject scene directives; block unsupported claims.
-- **In scope:** `script_variants`, `script_fact_checks`; three agents; orchestrator; directive validator; Filament relation managers; Studio hook selection.
+- **In scope:** `script_variants`, `script_fact_checks`; deterministic hook/narrative/fact-check agents; orchestrator stages; strict directive validator; read-only Filament resources; Studio hook selection, directive preview/diff, and fact-check review. No autonomous G-03 job or scheduler entry was added; execution remains manual/flag-gated.
 - **Out of scope:** assets, captions, publishing.
-- **Deliverables:** migrations, services, jobs, UI, tests.
-- **Data:** additive; `video_scripts.scenes` gains optional `directives`.
-- **Acceptance criteria:** exactly 3 hooks; scene durations ±5s; unsupported claims block auto-approval; legacy scripts still render.
-- **Test gate:** mocked AI responses; parser and validator fixtures.
-- **Rollback:** flag reverts to `VideoScriptGenerator` single prompt.
-- **Risks:** prompt drift; golden fixtures + temperature caps.
+- **Deliverables:** two additive migrations; `ScriptVariantType`, `ScriptHookType`, `ScriptFactCheckVerdict`, `ApprovalGateType::ScriptFactCheck`; `ScriptVariant`, `ScriptFactCheck`; `ScriptSource`, `ScriptSourceFactory`, `ScriptAgentsGate`, `ScriptAgentAiClient`, `DirectiveValidator`, `HookSpecialistAgent`, `NarrativeArchitectAgent`, `FactCheckerAgent`, `ScriptPipelineService`; `GenerateScriptVariantsStage`, `ComposeScriptStage`, `FactCheckScriptStage`; read-only `ScriptVariantResource` / `ScriptFactCheckResource`; Studio review panel; diagnostics; Remotion optional directive fields; tests; docs.
+- **Data:** additive only. Migration range `2026_10_24_140000`–`2026_10_24_140100`. Dev data preserved: `news=1`, `video_renders=0`, `youtube_publishing_states=0`; `script_variants=0`, `script_fact_checks=0`.
+- **Acceptance criteria:** exactly three distinct grounded hooks with deterministic `hook_index` `1..3` and explicit `source_news_ids`; strict scene directive schema with total duration within ±5s of target; unsupported/uncertain claims block auto-approval and open a review gate; approved scripts are never overwritten; legacy scenes without directives render unchanged; dual gate off by default; dry-run performs zero paid calls and zero production script mutations; idempotent reruns create no duplicates; no network calls.
+- **Evidence:**
+  - Exactly three distinct hooks are generated and persisted per run; duplicates or a short set throw before persistence.
+  - Active window `cluster-{id}:g03-v1` or `news-{id}:g03-v1`; reruns return the existing run/script/variants.
+  - `DirectiveValidator` enforces the directive key set, contiguous scene order, source IDs, and total duration tolerance; legacy scenes pass through unchanged.
+  - Every claim is persisted with `supported|unsupported|uncertain`, `source_news_ids`, and evidence; blocking verdicts keep the script in `Draft` and open an `ApprovalGate` of type `ScriptFactCheck`.
+  - Optional external AI is inactive by default; when explicitly enabled it passes `BudgetGuard::authorize()`, `DryRunContext`, and writes an `ai_usage_ledger` row with purpose `Script` or `Critic`.
+  - Dry-run returns labeled `planned_variants` / `planned_scenes` / `planned_fact_checks` and mutates no production `VideoScript`.
+  - Studio is admin-only for hook selection, refuses approved scripts, and exposes no publishing controls; resources fail closed when tables are missing.
+  - G-03 suite: **36 passed / 293 assertions**; full suite: **241 passed / 1176 assertions / 0 failures / 0 risky**.
+- **Test gate:** every G-03 unit/feature class calls `Http::preventStrayRequests()` or an explicit `Http::fake()`; default-mode tests assert zero requests; no real provider, upload, or publishing action.
+- **Rollback:** disable `automation.script_agents.enabled` and the `script_agents.enabled` flag; the existing `VideoScriptGenerator` single-prompt path remains the fallback and the additive tables stay inert.
+- **Risks:** prompt drift and hallucinated claims; mitigate with deterministic local agents, golden fixtures, strict source grounding, fact-check gating, budget caps, and HITL review.
 
 ### G-04 — Word Captions & Audio Design
 - **Phase:** G
@@ -210,7 +219,7 @@
 | Gate | Requirement | Status |
 |------|-------------|--------|
 | G-A | G-00 produces a genuine FFprobe-verified MP4 | **Passed** (video + synthetic audio; 2026-10-24) |
-| G-B | G-01..G-03 pass mocked tests + dry-run pilot | **In progress** — G-01 and G-02 passed; G-03 pending |
+| G-B | G-01..G-03 pass mocked tests + dry-run pilot | **Passed** — G-01, G-02, and G-03 verified 2026-10-24 |
 | G-C | G-04..G-08 pass opt-in integration tests | Proposed |
 | H-A | H-01..H-03 pass privacy/authorization review | Proposed |
 

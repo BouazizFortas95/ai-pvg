@@ -2,14 +2,25 @@
 
 namespace App\Livewire;
 
+use App\Enums\ScriptVariantType;
 use App\Enums\UserRole;
+use App\Enums\VideoScriptStatus;
+use App\Models\AutomationRun;
 use App\Models\News;
 use App\Models\NewsScore;
+use App\Models\ScriptVariant;
 use App\Models\StoryCluster;
 use App\Models\VideoScript;
+use App\Services\AI\ScriptPipeline\DirectiveValidator;
+use App\Services\AI\ScriptPipeline\NarrativeArchitectAgent;
+use App\Services\AI\ScriptPipeline\ScriptAgentsGate;
+use App\Services\AI\ScriptPipeline\ScriptSource;
+use App\Services\AI\ScriptPipeline\ScriptSourceFactory;
 use App\Services\Automation\Greenlight\AutoGreenlightService;
 use App\Services\Automation\Triage\TriageGate;
 use App\Services\ThemeEngine;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
@@ -25,6 +36,12 @@ class StudioDashboard extends Component
     public string $mode = 'dark';
 
     public string $triageMessage = '';
+
+    public string $scriptMessage = '';
+
+    public ?int $previewScriptId = null;
+
+    public int $previewHookIndex = 1;
 
     public function mount(): void
     {
@@ -103,11 +120,92 @@ class StudioDashboard extends Component
         }
     }
 
+    public function selectHook(int $variantId): void
+    {
+        if (! $this->canReviewScriptAgents()) {
+            $this->scriptMessage = 'Only administrators can select a hook variant.';
+
+            return;
+        }
+
+        if (! $this->scriptAgentTablesAvailable()) {
+            $this->scriptMessage = 'Script agent tables are not available. Run the additive G-03 migrations first.';
+
+            return;
+        }
+
+        if (! app(ScriptAgentsGate::class)->enabled()) {
+            $this->scriptMessage = 'Script agents are disabled. Enable automation.script_agents.enabled and the script_agents.enabled feature flag first.';
+
+            return;
+        }
+
+        $variant = ScriptVariant::query()->with('videoScript')->find($variantId);
+
+        if ($variant === null || $variant->videoScript === null) {
+            $this->scriptMessage = 'Hook variant not found.';
+
+            return;
+        }
+
+        $script = $variant->videoScript;
+
+        if ($script->status === VideoScriptStatus::Approved) {
+            $this->scriptMessage = 'Approved scripts are protected; hook selection was refused.';
+
+            return;
+        }
+
+        DB::transaction(function () use ($script, $variant): void {
+            $script->variants()->update(['selected' => false]);
+            $script->variants()->whereKey($variant->getKey())->update(['selected' => true]);
+            $variant->forceFill(['selected' => true])->syncOriginalAttribute('selected');
+        });
+
+        $this->previewScriptId = (int) $script->getKey();
+        $this->previewHookIndex = (int) $variant->hook_index;
+        $this->scriptMessage = 'Hook #'.$variant->hook_index.' selected for script #'.$script->getKey().'. No publishing action was taken.';
+    }
+
+    /**
+     * Read-only directive preview for an existing hook. It never persists a
+     * scene change and never performs a paid provider call.
+     */
+    public function previewHook(int $variantId): void
+    {
+        if (! $this->canReviewScriptAgents()) {
+            $this->scriptMessage = 'Only administrators can preview scene directives.';
+
+            return;
+        }
+
+        if (! $this->scriptAgentTablesAvailable()) {
+            $this->scriptMessage = 'Script agent tables are not available.';
+
+            return;
+        }
+
+        $variant = ScriptVariant::query()->with('videoScript')->find($variantId);
+
+        if ($variant === null || $variant->videoScript === null) {
+            $this->scriptMessage = 'Hook variant not found.';
+
+            return;
+        }
+
+        $this->previewScriptId = (int) $variant->videoScript->getKey();
+        $this->previewHookIndex = (int) $variant->hook_index;
+        $this->scriptMessage = 'Previewing scene directives for hook #'.$variant->hook_index.'. Nothing was changed.';
+    }
+
     public function render()
     {
         $triageEnabled = app(TriageGate::class)->enabled();
         $triageScores = collect();
         $triageClusters = collect();
+        $scriptPreviews = [];
+        $scriptAgentsEnabled = false;
+        $scriptTablesAvailable = $this->scriptAgentTablesAvailable();
 
         if (Schema::hasTable('news_scores') && Schema::hasTable('news')) {
             $triageScores = NewsScore::query()
@@ -127,6 +225,11 @@ class StudioDashboard extends Component
                 ->get();
         }
 
+        if ($scriptTablesAvailable) {
+            $scriptAgentsEnabled = app(ScriptAgentsGate::class)->enabled();
+            $scriptPreviews = $this->buildScriptPreviews();
+        }
+
         return view('studio.dashboard', [
             'stats' => $this->stats,
             'scripts' => VideoScript::with('news')->latest()->take(5)->get(),
@@ -134,6 +237,198 @@ class StudioDashboard extends Component
             'triageEnabled' => $triageEnabled,
             'triageScores' => $triageScores,
             'triageClusters' => $triageClusters,
+            'scriptAgentsEnabled' => $scriptAgentsEnabled,
+            'scriptTablesAvailable' => $scriptTablesAvailable,
+            'scriptPreviews' => $scriptPreviews,
+            'isAdmin' => $this->canReviewScriptAgents(),
         ]);
+    }
+
+    private function canReviewScriptAgents(): bool
+    {
+        $user = auth()->user();
+
+        return $user !== null && $user->role === UserRole::Admin;
+    }
+
+    private function scriptAgentTablesAvailable(): bool
+    {
+        return Schema::hasTable('script_variants')
+            && Schema::hasTable('script_fact_checks')
+            && Schema::hasTable('video_scripts');
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function buildScriptPreviews(): array
+    {
+        $scripts = VideoScript::query()
+            ->with(['variants', 'factChecks', 'news'])
+            ->whereHas('variants')
+            ->latest('id')
+            ->limit(5)
+            ->get();
+
+        if ($scripts->isEmpty()) {
+            return [];
+        }
+
+        $activeScriptId = $this->previewScriptId;
+
+        if ($activeScriptId === null || $scripts->firstWhere('id', $activeScriptId) === null) {
+            $activeScriptId = (int) $scripts->first()->getKey();
+        }
+
+        $previews = [];
+
+        foreach ($scripts as $script) {
+            $hooks = $script->variants
+                ->where('variant_type', ScriptVariantType::Hook)
+                ->sortBy('hook_index')
+                ->values();
+            $selected = $script->variants
+                ->where('variant_type', ScriptVariantType::Hook)
+                ->firstWhere('selected', true);
+            $checks = $script->factChecks->sortBy('id')->values();
+            $preview = null;
+
+            if ((int) $script->getKey() === (int) $activeScriptId && $hooks->isNotEmpty()) {
+                $preview = $this->buildDirectivePreview($script, $hooks, $this->previewHookIndex);
+            }
+
+            $previews[] = [
+                'script' => $script,
+                'hooks' => $hooks,
+                'selected_hook_index' => (int) ($selected?->hook_index ?? 1),
+                'fact_checks' => $checks,
+                'preview' => $preview,
+                'is_active' => (int) $script->getKey() === (int) $activeScriptId,
+                'approved' => $script->status === VideoScriptStatus::Approved,
+            ];
+        }
+
+        return $previews;
+    }
+
+    /**
+     * Compose an in-memory preview for a hook so the Studio can show the
+     * directives that would be produced and how they differ from persisted
+     * data. No model is saved and no provider is called.
+     *
+     * @param  Collection<int, ScriptVariant>  $hooks
+     * @return array<string, mixed>|null
+     */
+    private function buildDirectivePreview(VideoScript $script, $hooks, int $hookIndex): ?array
+    {
+        $variant = $hooks->firstWhere('hook_index', $hookIndex) ?? $hooks->first();
+
+        if (! $variant instanceof ScriptVariant) {
+            return null;
+        }
+
+        try {
+            $source = $this->resolvePreviewSource($script);
+
+            if ($source === null) {
+                return null;
+            }
+
+            $scenes = app(NarrativeArchitectAgent::class)->compose($source, (string) $variant->content);
+            app(DirectiveValidator::class)->validate($scenes, $script->target_duration, $source->newsIds());
+        } catch (Throwable $exception) {
+            return [
+                'hook_index' => (int) $variant->hook_index,
+                'available' => false,
+                'error' => $exception->getMessage(),
+                'scenes' => [],
+                'diff' => [],
+            ];
+        }
+
+        return [
+            'hook_index' => (int) $variant->hook_index,
+            'available' => true,
+            'error' => null,
+            'scenes' => $scenes,
+            'diff' => $this->directiveDiff($script, $scenes),
+        ];
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $previewScenes
+     * @return list<array{scene: int, field: string, persisted: string, preview: string}>
+     */
+    private function directiveDiff(VideoScript $script, array $previewScenes): array
+    {
+        $fields = ['camera_motion', 'b_roll_query', 'highlight_text', 'sfx_cue', 'emotion_tone', 'duration_seconds'];
+        $persisted = is_array($script->scenes) ? $script->scenes : [];
+        $diff = [];
+
+        foreach ($previewScenes as $index => $scene) {
+            $current = $persisted[$index]['directives'] ?? null;
+            $preview = $scene['directives'] ?? null;
+
+            if (! is_array($preview)) {
+                continue;
+            }
+
+            foreach ($fields as $field) {
+                $from = is_array($current) && array_key_exists($field, $current)
+                    ? (string) $current[$field]
+                    : '—';
+                $to = array_key_exists($field, $preview) ? (string) $preview[$field] : '—';
+
+                if ($from !== $to) {
+                    $diff[] = [
+                        'scene' => (int) ($scene['order'] ?? $index + 1),
+                        'field' => $field,
+                        'persisted' => $from,
+                        'preview' => $to,
+                    ];
+                }
+            }
+        }
+
+        return $diff;
+    }
+
+    private function resolvePreviewSource(VideoScript $script): ?ScriptSource
+    {
+        $runs = AutomationRun::query()
+            ->where('pipeline', 'script_agents.pipeline')
+            ->latest('id')
+            ->limit(50)
+            ->get();
+
+        foreach ($runs as $run) {
+            $meta = $run->meta ?? [];
+
+            if ((int) ($meta['video_script_id'] ?? 0) !== (int) $script->getKey()) {
+                continue;
+            }
+
+            $subject = $run->subject;
+
+            if ($subject instanceof StoryCluster || $subject instanceof News) {
+                return app(ScriptSourceFactory::class)->fromModel(
+                    $subject,
+                    (int) $script->target_duration,
+                    (string) $script->language,
+                );
+            }
+        }
+
+        $news = $script->news;
+
+        if ($news instanceof News) {
+            return app(ScriptSourceFactory::class)->fromModel(
+                $news,
+                (int) $script->target_duration,
+                (string) $script->language,
+            );
+        }
+
+        return null;
     }
 }

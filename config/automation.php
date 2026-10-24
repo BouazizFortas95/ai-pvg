@@ -75,7 +75,13 @@ return [
     | register their ordered stages here or via code.
     |
     */
-    'pipelines' => [],
+    'pipelines' => [
+        'script_agents.pipeline' => [
+            'generate_variants',
+            'compose_script',
+            'fact_check_script',
+        ],
+    ],
 
     /*
     |--------------------------------------------------------------------------
@@ -141,6 +147,34 @@ return [
         'similarity_threshold' => (float) env('AUTOMATION_CLUSTER_SIMILARITY', 0.82),
         'min_sources' => (int) env('AUTOMATION_CLUSTER_MIN_SOURCES', 3),
         'max_sources' => (int) env('AUTOMATION_CLUSTER_MAX_SOURCES', 5),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Script agents (Pillar 2)
+    |--------------------------------------------------------------------------
+    |
+    | G-03 is opt-in and requires both the config switch and the database
+    | feature flag. Agent calls are deterministic/local unless use_ai is
+    | explicitly enabled; any external call is budget-guarded.
+    |
+    */
+    'script_agents' => [
+        'enabled' => (bool) env('AUTOMATION_SCRIPT_AGENTS_ENABLED', false),
+        'feature_flag' => env('AUTOMATION_SCRIPT_AGENTS_FEATURE_FLAG', 'script_agents.enabled'),
+        'use_ai' => (bool) env('AUTOMATION_SCRIPT_AGENTS_USE_AI', false),
+        'language' => env('AUTOMATION_SCRIPT_AGENTS_LANGUAGE', 'en'),
+        'target_duration' => (int) env('AUTOMATION_SCRIPT_AGENTS_TARGET_DURATION', 45),
+        'duration_tolerance' => (int) env('AUTOMATION_SCRIPT_AGENTS_DURATION_TOLERANCE', 5),
+        'hook_word_limit' => (int) env('AUTOMATION_SCRIPT_AGENTS_HOOK_WORD_LIMIT', 12),
+        'max_scene_seconds' => (int) env('AUTOMATION_SCRIPT_AGENTS_MAX_SCENE_SECONDS', 12),
+        'claim_coverage_threshold' => (float) env('AUTOMATION_SCRIPT_AGENTS_CLAIM_COVERAGE', 0.30),
+        'evidence_max_chars' => (int) env('AUTOMATION_SCRIPT_AGENTS_EVIDENCE_CHARS', 300),
+        'estimated_call_micros' => (int) env('AUTOMATION_SCRIPT_AGENTS_CALL_MICROS', 10_000),
+        'max_tokens' => (int) env('AUTOMATION_SCRIPT_AGENTS_MAX_TOKENS', 1200),
+        'temperature' => (float) env('AUTOMATION_SCRIPT_AGENTS_TEMPERATURE', 0.2),
+        'model' => env('AUTOMATION_SCRIPT_AGENTS_MODEL'),
+        'prompt_version' => env('AUTOMATION_SCRIPT_AGENTS_PROMPT_VERSION', 'g03-v1'),
     ],
 
     'render' => [

@@ -7,6 +7,7 @@ use Database\Factories\VideoScriptFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class VideoScript extends Model
 {
@@ -50,5 +51,15 @@ class VideoScript extends Model
     public function approver(): BelongsTo
     {
         return $this->belongsTo(User::class, 'approved_by');
+    }
+
+    public function variants(): HasMany
+    {
+        return $this->hasMany(ScriptVariant::class);
+    }
+
+    public function factChecks(): HasMany
+    {
+        return $this->hasMany(ScriptFactCheck::class);
     }
 }
