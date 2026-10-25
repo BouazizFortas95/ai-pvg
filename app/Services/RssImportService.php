@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\NewsStatus;
 use App\Models\News;
 use App\Models\NewsSource;
 use Illuminate\Support\Facades\Http;
@@ -9,7 +10,20 @@ use Illuminate\Support\Str;
 
 class RssImportService
 {
-    public function import(NewsSource $source): ImportResult
+    /**
+     * Import a feed.
+     *
+     * Optional controls keep the legacy job behavior unchanged while letting
+     * bounded operator commands set a category and mark imported items ready:
+     *
+     * - limit: stop after this many successful inserts
+     * - status: NewsStatus value for inserted articles (default: draft)
+     * - news_category_id: structured category foreign key
+     * - category: legacy category label (default: Uncategorized)
+     *
+     * @param  array{limit?: int|null, status?: string|null, news_category_id?: int|null, category?: string|null}  $options
+     */
+    public function import(NewsSource $source, array $options = []): ImportResult
     {
         $result = new ImportResult($source);
 
@@ -47,8 +61,17 @@ class RssImportService
         $items = $this->parseFeed($xmlString, $result);
         $result->totalItems = count($items);
 
+        $limit = isset($options['limit']) ? max(0, (int) $options['limit']) : null;
+        $status = NewsStatus::tryFrom((string) ($options['status'] ?? '')) ?? NewsStatus::Draft;
+        $categoryId = isset($options['news_category_id']) ? (int) $options['news_category_id'] : null;
+        $categoryLabel = trim((string) ($options['category'] ?? '')) ?: __('Uncategorized');
+
         foreach ($items as $item) {
-            $this->processItem($item, $source, $result);
+            if ($limit !== null && $result->importedItems >= $limit) {
+                break;
+            }
+
+            $this->processItem($item, $source, $result, $status, $categoryId, $categoryLabel);
         }
 
         $result->complete();
@@ -163,8 +186,14 @@ class RssImportService
         ];
     }
 
-    protected function processItem(array $item, NewsSource $source, ImportResult $result): void
-    {
+    protected function processItem(
+        array $item,
+        NewsSource $source,
+        ImportResult $result,
+        NewsStatus $status,
+        ?int $categoryId,
+        string $categoryLabel,
+    ): void {
         if (empty($item['title'])) {
             $result->skippedItems++;
 
@@ -202,9 +231,10 @@ class RssImportService
                 'source_url' => $item['url'],
                 'source_name' => $source->name,
                 'image' => $item['image_url'],
-                'category' => __('Uncategorized'),
-                'status' => 'draft',
+                'category' => $categoryLabel,
+                'status' => $status->value,
                 'published_at' => $this->parseDate($item['published_at']),
+                'news_category_id' => $categoryId,
                 'news_source_id' => $source->getKey(),
                 'normalized_source_url' => $normalizedUrl,
                 'normalized_title' => $normalizedTitle,

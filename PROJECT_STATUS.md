@@ -32,7 +32,7 @@ The delivered MVP is **implemented and tested**. External live boundaries (paid 
 | **Current branch** | `main` | `git branch --show-current` |
 | **Phase H foundation checkpoint** | `fdf950c feat(automation): complete G-05 visual asset harvester scene props remotion dynamic` | `git show -s --oneline fdf950c` |
 | **Phase H completion delta** | Read-only `PublishingStateResource` / `CoPilotSessionResource`, Studio publishing/Co-Pilot oversight, strict `PublishingGate` + dual-admin guard, comprehensive autopilot gate, diagnostics, tests, and documentation. | `git show --stat HEAD` after the completion commit |
-| **Working tree** | Clean after the walkthrough/runbook commit; dev SQLite remains ignored and uncommitted. | `git status --short` |
+| **Working tree** | Clean after the live RSS import commit; dev SQLite remains ignored and uncommitted. | `git status --short` |
 | **Database file** | `database/database.sqlite` is ignored by Git and was not staged. | `git check-ignore database/database.sqlite` |
 
 The earlier G-05/G-06 commit message did not name Phase H; the checkpoint hash is authoritative. No history rewrite was performed during the Phase H completion pass.
@@ -59,9 +59,10 @@ The earlier G-05/G-06 commit message did not name Phase H; the checkpoint hash i
 
 ## 4. Automated Test Suite Status
 
-- **Latest full run:** `261 passed` · `2179 assertions` · `0 failures` · `0 risky`.
+- **Latest full run:** `263 passed` · `2208 assertions` · `0 failures` · `0 risky`.
 - **Phase H suite:** `12 passed` · `53 assertions` · `0 failures`.
 - **Dry-run walkthrough suite:** `1 passed` · `864 assertions` · `0 failures` · `0 risky`.
+- **Live tech import suite:** `2 passed` · `26 assertions` · `0 failures`.
 - **Isolation:** `phpunit.xml` forces SQLite `:memory:`; tests never touch the dev database.
 - **Network discipline:** every Phase H test and the walkthrough call `Http::preventStrayRequests()`; no YouTube, provider, crawler, or paid call is made.
 - **Verification command:** `php artisan test`.
@@ -148,6 +149,13 @@ Any missing gate, exhausted budget, open/half-open breaker, or missing budget ta
 - The G-05 path was corrected during the walkthrough: `ScenePropBuilder` now maps verified `SceneAsset` records to their `VisualAsset` storage path and attribution, `RemotionPropInjector` emits the full props object as `sceneProps`, and `remotion/src/VideoScript.tsx` destructures `visualAssets`.
 - A real local render was executed with `php artisan ai-pvg:verify-mp4 --execute` and passed FFprobe verification (`h264`, `1080x1920`, `30 fps`, 6 seconds).
 
+### 6.7 Live technology news ingestion
+
+- `php artisan news:import-live-tech --limit=10 --per-feed=3` fetches verified public feeds through the existing `RssImportService` and `NewsDuplicateService`.
+- Imported 10 genuine recent articles from TechCrunch (3), The Verge (3), Ars Technica (3), and GitHub Blog (1). Each is `ready`, linked to the new `Technology` category, and has a unique normalized URL/title.
+- The five configured live feeds are stored as **inactive** `NewsSource` records so the scheduled `news:import-rss` task cannot add articles in the background. The command is idempotent and stops at the target.
+- No AI provider, rendering, upload, or publishing call was made. The pre-existing `news` row and all automation/publishing tables were preserved.
+
 ---
 
 ## 7. Development Database Preservation
@@ -155,7 +163,10 @@ Any missing gate, exhausted budget, open/half-open breaker, or missing budget ta
 Verified after Phase H migrations and final test runs:
 
 ```text
-news=1
+news=11 (1 pre-existing + 10 live RSS articles)
+news_sources=6 (1 pre-existing + 5 configured live feeds, stored inactive)
+news_categories=3 (Uncategorized, PHP, Technology)
+rss_import_logs=0
 video_renders=0
 youtube_publishing_states=0
 automation_runs=0
@@ -184,8 +195,8 @@ co_pilot_review_sessions=0
 Safety attestations:
 
 - No `migrate:fresh`, `db:wipe`, truncation, or seeder was run against the development database.
-- Only additive migrations were applied.
-- The single existing `news` row was left untouched.
+- Only additive migrations and additive import rows were applied.
+- The single pre-existing `news` row (ID 1) was left untouched; exactly 10 live RSS articles were appended.
 - Tests use isolated `:memory:` SQLite.
 
 ---
@@ -214,8 +225,8 @@ Post-MVP ideas remain optional and unauthorized, including autonomous QA/self-he
 ### 9.1 Full test suite
 
 ```text
-Tests:    261 passed (2179 assertions)
-Duration: 41.12s
+Tests:    263 passed (2208 assertions)
+Duration: 39.45s
 0 failures, 0 risky
 ```
 

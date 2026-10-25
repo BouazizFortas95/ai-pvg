@@ -222,6 +222,22 @@ php artisan test
 
 The full suite must end with `0 failures` and `0 risky`. Tests never touch `database/database.sqlite`.
 
+### 5.4 Live technology news ingestion
+
+`news:import-live-tech` is an explicit, bounded importer for verified public technology feeds. It reuses `RssImportService` and `NewsDuplicateService`, marks imported articles `ready`, and links them to the `Technology` category.
+
+```bash
+# Import/ensure 10 ready articles, maximum 3 per feed
+php artisan news:import-live-tech --limit=10 --per-feed=3
+
+# Restrict to specific feeds
+php artisan news:import-live-tech --limit=6 --per-feed=2 --feed=techcrunch --feed=verge
+```
+
+Configured feeds: TechCrunch, The Verge, Ars Technica, GitHub Blog, and Hacker News. Their `NewsSource` rows are stored **inactive** so the scheduled `news:import-rss` command never adds articles in the background; only this explicit command imports them.
+
+The command is idempotent: it counts existing ready articles from the selected sources and imports only the missing remainder. It does not call AI providers, render video, upload, or publish. Re-running with the target already met prints `Target already met; no new articles imported.`
+
 ---
 
 ## 6. Real local Remotion MP4 render
@@ -355,6 +371,9 @@ php artisan ai-pvg:diagnostics
 php artisan test --filter=EndToEndAutomationDryRunWalkthroughTest
 vendor/bin/pint --test
 php artisan test
+
+# Live technology news (explicit, bounded, inactive sources)
+php artisan news:import-live-tech --limit=10 --per-feed=3
 
 # Real local render
 php artisan ai-pvg:verify-mp4

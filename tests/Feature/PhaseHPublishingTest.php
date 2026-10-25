@@ -39,6 +39,10 @@ class PhaseHPublishingTest extends TestCase
 
         Http::preventStrayRequests();
         config([
+            // Keep the default-state assertions independent of the local
+            // operator's .env switches.
+            'automation.enabled' => false,
+            'automation.dry_run' => true,
             'automation.publishing.enabled' => false,
             'automation.approval.require_dual_public_publish' => true,
             'automation.budget.monthly_limit_micros' => 5_000_000,
