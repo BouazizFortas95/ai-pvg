@@ -32,7 +32,7 @@ The delivered MVP is **implemented and tested**. External live boundaries (paid 
 | **Current branch** | `main` | `git branch --show-current` |
 | **Phase H foundation checkpoint** | `fdf950c feat(automation): complete G-05 visual asset harvester scene props remotion dynamic` | `git show -s --oneline fdf950c` |
 | **Phase H completion delta** | Read-only `PublishingStateResource` / `CoPilotSessionResource`, Studio publishing/Co-Pilot oversight, strict `PublishingGate` + dual-admin guard, comprehensive autopilot gate, diagnostics, tests, and documentation. | `git show --stat HEAD` after the completion commit |
-| **Working tree** | Clean after the manual triage command commit; dev SQLite remains ignored and uncommitted. | `git status --short` |
+| **Working tree** | Clean after the `rss:import` compatibility alias commit; dev SQLite remains ignored and uncommitted. | `git status --short` |
 | **Database file** | `database/database.sqlite` is ignored by Git and was not staged. | `git check-ignore database/database.sqlite` |
 
 The earlier G-05/G-06 commit message did not name Phase H; the checkpoint hash is authoritative. No history rewrite was performed during the Phase H completion pass.
@@ -59,10 +59,10 @@ The earlier G-05/G-06 commit message did not name Phase H; the checkpoint hash i
 
 ## 4. Automated Test Suite Status
 
-- **Latest full run:** `268 passed` · `2263 assertions` · `0 failures` · `0 risky`.
+- **Latest full run:** `269 passed` · `2265 assertions` · `0 failures` · `0 risky`.
 - **Phase H suite:** `12 passed` · `53 assertions` · `0 failures`.
 - **Dry-run walkthrough suite:** `1 passed` · `864 assertions` · `0 failures` · `0 risky`.
-- **Live tech import suite:** `2 passed` · `26 assertions` · `0 failures`.
+- **Live tech import suite:** `3 passed` · `31 assertions` · `0 failures`.
 - **Manual triage command suite:** `5 passed` · `58 assertions` · `0 failures`.
 - **Isolation:** `phpunit.xml` forces SQLite `:memory:`; tests never touch the dev database.
 - **Network discipline:** every Phase H test and the walkthrough call `Http::preventStrayRequests()`; no YouTube, provider, crawler, or paid call is made.
@@ -155,6 +155,7 @@ Any missing gate, exhausted budget, open/half-open breaker, or missing budget ta
 - `php artisan news:import-live-tech --limit=10 --per-feed=3` fetches verified public feeds through the existing `RssImportService` and `NewsDuplicateService`.
 - Imported 10 genuine recent articles from TechCrunch (3), The Verge (3), Ars Technica (3), and GitHub Blog (1). Each is `ready`, linked to the new `Technology` category, and has a unique normalized URL/title.
 - The five configured live feeds are stored as **inactive** `NewsSource` records so the scheduled `news:import-rss` task cannot add articles in the background. The command is idempotent and stops at the target.
+- `php artisan rss:import` is registered as a compatibility alias for `news:import-live-tech`; it runs the same bounded synchronous import.
 - No AI provider, rendering, upload, or publishing call was made. The pre-existing `news` row and all automation/publishing tables were preserved.
 
 ### 6.8 Manual G-02 triage command
@@ -236,8 +237,8 @@ Post-MVP ideas remain optional and unauthorized, including autonomous QA/self-he
 ### 9.1 Full test suite
 
 ```text
-Tests:    268 passed (2263 assertions)
-Duration: 38.35s
+Tests:    269 passed (2265 assertions)
+Duration: 40.09s
 0 failures, 0 risky
 ```
 

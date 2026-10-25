@@ -90,6 +90,17 @@ class LiveTechNewsImportTest extends TestCase
         Http::assertSentCount(4);
     }
 
+    public function test_rss_import_alias_runs_the_live_tech_importer(): void
+    {
+        $this->artisan('rss:import', ['--limit' => 2, '--per-feed' => 1])
+            ->expectsOutputToContain('Live tech feed import')
+            ->assertSuccessful();
+
+        $this->assertSame(2, News::query()->count());
+        $this->assertSame(2, News::query()->where('status', NewsStatus::Ready->value)->count());
+        $this->assertDatabaseHas('news_categories', ['slug' => 'technology']);
+    }
+
     private function feedXml(string $host): string
     {
         $items = '';

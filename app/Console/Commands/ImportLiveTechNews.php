@@ -65,6 +65,13 @@ class ImportLiveTechNews extends Command
 
     protected $description = 'Fetch verified public tech RSS feeds and populate the local news table (no AI, rendering, or publishing)';
 
+    /**
+     * Compatibility alias for operators used to an `rss:import` command.
+     *
+     * @var list<string>
+     */
+    protected $aliases = ['rss:import'];
+
     public function handle(RssImportService $importer): int
     {
         $limit = (int) $this->option('limit');

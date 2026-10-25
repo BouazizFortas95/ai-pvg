@@ -232,9 +232,12 @@ php artisan news:import-live-tech --limit=10 --per-feed=3
 
 # Restrict to specific feeds
 php artisan news:import-live-tech --limit=6 --per-feed=2 --feed=techcrunch --feed=verge
+
+# Compatibility alias for the same bounded live importer
+php artisan rss:import --limit=10 --per-feed=3
 ```
 
-Configured feeds: TechCrunch, The Verge, Ars Technica, GitHub Blog, and Hacker News. Their `NewsSource` rows are stored **inactive** so the scheduled `news:import-rss` command never adds articles in the background; only this explicit command imports them.
+Configured feeds: TechCrunch, The Verge, Ars Technica, GitHub Blog, and Hacker News. Their `NewsSource` rows are stored **inactive** so the scheduled `news:import-rss` command never adds articles in the background; only this explicit command imports them. `rss:import` is an alias of `news:import-live-tech`, not of the queued `news:import-rss` dispatcher.
 
 The command is idempotent: it counts existing ready articles from the selected sources and imports only the missing remainder. It does not call AI providers, render video, upload, or publish. Re-running with the target already met prints `Target already met; no new articles imported.`
 
@@ -425,6 +428,7 @@ php artisan test
 
 # Live technology news (explicit, bounded, inactive sources)
 php artisan news:import-live-tech --limit=10 --per-feed=3
+php artisan rss:import --limit=10 --per-feed=3   # compatibility alias
 
 # Manual G-02 triage (score, cluster, auto-greenlight; use --dry-run for rollback)
 php artisan ai-pvg:triage
