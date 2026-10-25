@@ -3,7 +3,7 @@
 namespace App\Enums;
 
 use Filament\Support\Contracts\HasColor;
-use HasLabel;
+use Filament\Support\Contracts\HasLabel;
 
 enum VoiceGenerationStatus: string implements HasColor, HasLabel
 {
