@@ -32,7 +32,7 @@ The delivered MVP is **implemented and tested**. External live boundaries (paid 
 | **Current branch** | `main` | `git branch --show-current` |
 | **Phase H foundation checkpoint** | `fdf950c feat(automation): complete G-05 visual asset harvester scene props remotion dynamic` | `git show -s --oneline fdf950c` |
 | **Phase H completion delta** | Read-only `PublishingStateResource` / `CoPilotSessionResource`, Studio publishing/Co-Pilot oversight, strict `PublishingGate` + dual-admin guard, comprehensive autopilot gate, diagnostics, tests, and documentation. | `git show --stat HEAD` after the completion commit |
-| **Working tree** | Clean after the Phase H completion commit; dev SQLite remains ignored and uncommitted. | `git status --short` |
+| **Working tree** | Clean after the walkthrough/runbook commit; dev SQLite remains ignored and uncommitted. | `git status --short` |
 | **Database file** | `database/database.sqlite` is ignored by Git and was not staged. | `git check-ignore database/database.sqlite` |
 
 The earlier G-05/G-06 commit message did not name Phase H; the checkpoint hash is authoritative. No history rewrite was performed during the Phase H completion pass.
@@ -59,15 +59,16 @@ The earlier G-05/G-06 commit message did not name Phase H; the checkpoint hash i
 
 ## 4. Automated Test Suite Status
 
-- **Latest full run:** `258 passed` · `1265 assertions` · `0 failures` · `0 risky`.
+- **Latest full run:** `261 passed` · `2179 assertions` · `0 failures` · `0 risky`.
 - **Phase H suite:** `12 passed` · `53 assertions` · `0 failures`.
+- **Dry-run walkthrough suite:** `1 passed` · `864 assertions` · `0 failures` · `0 risky`.
 - **Isolation:** `phpunit.xml` forces SQLite `:memory:`; tests never touch the dev database.
-- **Network discipline:** every Phase H test calls `Http::preventStrayRequests()`; no YouTube, provider, crawler, or paid call is made.
+- **Network discipline:** every Phase H test and the walkthrough call `Http::preventStrayRequests()`; no YouTube, provider, crawler, or paid call is made.
 - **Verification command:** `php artisan test`.
 
 **Build verification:** `npm run build` → Vite 7.3.7, 58 modules transformed, `public/build/assets/app-BI1te6TZ.css` 52.00 kB, `public/build/assets/app-DMsN-rLE.js` 51.52 kB, built in **1.90s**.
 
-**Style verification:** `vendor/bin/pint --test` scoped to Phase H PHP paths → **passed**. A full-repository Pint run still reports pre-existing violations in unrelated legacy files; those files were not reformatted during Phase H to keep the change set scoped.
+**Style verification:** full-repository `vendor/bin/pint --test` → **passed**.
 
 ---
 
@@ -140,6 +141,13 @@ Any missing gate, exhausted budget, open/half-open breaker, or missing budget ta
 - Studio dashboard — read-only Phase H panel showing gate state, approval counts, distinct-admin approvals, Co-Pilot review counts, and recent audit rows. No publish/upload buttons.
 - `ai-pvg:diagnostics` — reports publishing/Co-Pilot gate state, table availability, data counts, dual-control enforcement, and autopilot block reasons without mutating data.
 
+### 6.6 Dry-run walkthrough and operator runbook
+
+- `tests/Feature/EndToEndAutomationDryRunWalkthroughTest.php` exercises the real G-01..G-06 services and orchestration stages against isolated `:memory:` SQLite, then asserts zero HTTP calls, zero paid spend, and zero production media/publishing rows.
+- `OPERATOR_RUNBOOK.md` documents local setup (web server, Vite, queue worker, `/auth`, `/studio`), dry-run env/feature-flag configuration, verification commands, and the real local Remotion render command.
+- The G-05 path was corrected during the walkthrough: `ScenePropBuilder` now maps verified `SceneAsset` records to their `VisualAsset` storage path and attribution, `RemotionPropInjector` emits the full props object as `sceneProps`, and `remotion/src/VideoScript.tsx` destructures `visualAssets`.
+- A real local render was executed with `php artisan ai-pvg:verify-mp4 --execute` and passed FFprobe verification (`h264`, `1080x1920`, `30 fps`, 6 seconds).
+
 ---
 
 ## 7. Development Database Preservation
@@ -206,12 +214,38 @@ Post-MVP ideas remain optional and unauthorized, including autonomous QA/self-he
 ### 9.1 Full test suite
 
 ```text
-Tests:    258 passed (1265 assertions)
-Duration: 38.13s
+Tests:    261 passed (2179 assertions)
+Duration: 41.12s
 0 failures, 0 risky
 ```
 
-### 9.2 Phase H diagnostics
+### 9.2 Dry-run walkthrough
+
+```text
+PASS  Tests\Feature\EndToEndAutomationDryRunWalkthroughTest
+Tests:    1 passed (864 assertions)
+Duration: 1.76s
+0 failures, 0 risky
+Http::assertNothingSent(); paid spend = 0
+```
+
+### 9.3 Real local MP4 verification
+
+```text
+Chrome: ...\Google\Chrome\Application\chrome.exe
+FFprobe: remotion\node_modules\@remotion\compositor-win32-x64-msvc\ffprobe.exe
+FFmpeg:  remotion\node_modules\@remotion\compositor-win32-x64-msvc\ffmpeg.exe
+Remotion CLI: remotion\dist\render-cli.js
+Payload: remotion\payload.json
+
+File size: 35384 bytes
+Video stream: YES; Audio stream: NO
+Codec: h264; Resolution: 1080x1920; Frame rate: 30 fps
+Duration: 6 seconds; Frames: 180
+MP4 VERIFIED: storage\app\video_out\verify_20261025_174444.mp4
+```
+
+### 9.4 Phase H diagnostics
 
 ```text
 Publishing / Co-Pilot enabled: NO (flag=publishing.enabled; gate=CLOSED; dual_public_publish=ENFORCED)
@@ -220,7 +254,22 @@ Publishing / Co-Pilot data: approval_sessions=0; pending=0; approved=0; co_pilot
 Autopilot gate: BLOCKED; blocked=g01_automation,g02_triage,g03_script_agents,g04_captions,g05_assets,g06_formats; budget_remaining_micros=5000000; breaker=closed
 ```
 
-### 9.3 Phase H files
+### 9.5 Walkthrough and runbook files
+
+Created:
+
+- `tests/Feature/EndToEndAutomationDryRunWalkthroughTest.php`
+- `OPERATOR_RUNBOOK.md`
+
+Modified:
+
+- `app/Services/Automation/ScenePropBuilder.php`
+- `app/Services/Automation/RemotionPropInjector.php`
+- `remotion/src/VideoScript.tsx`
+- `remotion/dist/VideoScript.js`
+- `PROJECT_STATUS.md`
+
+### 9.6 Phase H files
 
 Created:
 

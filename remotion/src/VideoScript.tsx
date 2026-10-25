@@ -33,7 +33,7 @@ export const VideoScript: React.FC<{
     status?: string;
   };
   visualAssets?: Array<{ path: string; attribution?: string; status: string }> | null;
-}> = ({ scenes, title, language, targetDuration, template = 'cyber', audioUrl, captionTrack }) => {
+}> = ({ scenes, title, language, targetDuration, template = 'cyber', audioUrl, captionTrack, visualAssets }) => {
   const frame = useCurrentFrame();
   const durationFrames = targetDuration * 30;
   const isRTL = language === 'ar';

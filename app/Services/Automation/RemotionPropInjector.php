@@ -9,12 +9,8 @@ class RemotionPropInjector
         $visualAssets = $props['assets'] ?? [];
         $verified = array_filter($visualAssets, fn ($a) => ($a['status'] ?? '') === 'verified');
         $payload = $scriptPayload;
-        if (! empty($verified)) {
-            $payload['visualAssets'] = array_values($verified);
-            $payload['sceneProps'] = $props['scene_index'] ?? null;
-        } else {
-            $payload['visualAssets'] = null; // truthful fallback
-        }
+        $payload['visualAssets'] = empty($verified) ? null : array_values($verified); // null = truthful fallback
+        $payload['sceneProps'] = $props;
 
         return $payload;
     }
