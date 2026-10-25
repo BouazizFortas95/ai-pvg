@@ -107,6 +107,98 @@ class StoryClusteringServiceTest extends TestCase
         Http::assertNothingSent();
     }
 
+    public function test_paraphrased_multisource_story_clusters_at_the_default_threshold(): void
+    {
+        config(['automation.story_clustering.similarity_threshold' => 0.35]);
+
+        $asOf = CarbonImmutable::parse('2026-10-24 12:00:00');
+        $story = [
+            ['OpenAI releases GPT-5 with improved reasoning', 'OpenAI says GPT-5 improves reasoning and coding while reducing hallucinations.'],
+            ['OpenAI’s GPT-5 is here and it is better at reasoning', 'The new GPT-5 model from OpenAI improves reasoning and coding, the company says.'],
+            ['GPT-5 launch: OpenAI says its new model improves reasoning', 'OpenAI launched GPT-5 on Tuesday, claiming better reasoning and fewer hallucinations.'],
+        ];
+
+        $members = [];
+
+        foreach ($story as $index => [$title, $summary]) {
+            $members[] = $this->makeNewsWithSource(
+                $title,
+                NewsSource::factory()->create(),
+                [
+                    'summary' => $summary,
+                    'published_at' => $asOf->subMinutes($index + 1),
+                ],
+            );
+        }
+
+        foreach ([
+            ['SpeedCrunch 1.1', 'A fast desktop calculator application.'],
+            ['Instacart reportedly discussed selling itself with DoorDash and Uber', 'Instacart held talks with delivery rivals about a possible sale.'],
+        ] as $index => [$title, $summary]) {
+            $this->makeNewsWithSource(
+                $title,
+                NewsSource::factory()->create(),
+                [
+                    'summary' => $summary,
+                    'published_at' => $asOf->subMinutes(10 + $index),
+                ],
+            );
+        }
+
+        $clusters = app(StoryClusteringService::class)->cluster($asOf);
+
+        $this->assertCount(1, $clusters);
+        $this->assertSame(3, $clusters[0]->source_count);
+        $this->assertCount(3, $clusters[0]->news);
+        $this->assertEqualsCanonicalizing(
+            array_map(fn (News $article): int => (int) $article->getKey(), $members),
+            $clusters[0]->newsIds(),
+        );
+        Http::assertNothingSent();
+    }
+
+    public function test_diagnostics_explain_why_no_clusters_were_formed(): void
+    {
+        config(['automation.story_clustering.similarity_threshold' => 0.35]);
+
+        $asOf = CarbonImmutable::parse('2026-10-24 12:00:00');
+
+        foreach ([
+            ['SpeedCrunch 1.1', 'A fast desktop calculator application.'],
+            ['Instacart reportedly discussed selling itself with DoorDash and Uber', 'Instacart held talks with delivery rivals about a possible sale.'],
+            ['Blue Planet III is keeping the rough edges in the age of AI', 'The BBC documentary returns with new footage and a classic approach.'],
+        ] as $index => [$title, $summary]) {
+            $this->makeNewsWithSource(
+                $title,
+                NewsSource::factory()->create(),
+                [
+                    'summary' => $summary,
+                    'published_at' => $asOf->subMinutes(5 + $index),
+                ],
+            );
+        }
+
+        $service = app(StoryClusteringService::class);
+
+        $this->assertSame([], $service->cluster($asOf));
+
+        $diagnostics = $service->diagnose($asOf);
+
+        $this->assertSame(3, $diagnostics['candidate_count']);
+        $this->assertSame(48, $diagnostics['window_hours']);
+        $this->assertSame(0.35, $diagnostics['threshold']);
+        $this->assertSame(3, $diagnostics['min_sources']);
+        $this->assertSame(5, $diagnostics['max_sources']);
+        $this->assertSame(0, $diagnostics['qualifying_pairs']);
+        $this->assertSame(0, $diagnostics['component_count']);
+        $this->assertSame(0, $diagnostics['valid_component_count']);
+        $this->assertLessThan(0.35, $diagnostics['max_similarity']);
+        $this->assertNotNull($diagnostics['nearest_pair']);
+        $this->assertArrayHasKey('left_title', $diagnostics['nearest_pair']);
+        $this->assertArrayHasKey('right_title', $diagnostics['nearest_pair']);
+        Http::assertNothingSent();
+    }
+
     public function test_sanitize_fact_sheet_strips_ungrounded_or_invalid_claims(): void
     {
         $service = app(StoryClusteringService::class);

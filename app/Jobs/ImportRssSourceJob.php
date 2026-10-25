@@ -2,8 +2,10 @@
 
 namespace App\Jobs;
 
+use App\Enums\NewsStatus;
 use App\Models\NewsSource;
 use App\Models\RssImportLog;
+use App\Services\Automation\Triage\TriageGate;
 use App\Services\RssImportService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
@@ -12,6 +14,8 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
+use Throwable;
 
 class ImportRssSourceJob implements ShouldBeUnique, ShouldQueue
 {
@@ -70,9 +74,17 @@ class ImportRssSourceJob implements ShouldBeUnique, ShouldQueue
             'completed_at' => null,
         ]);
 
+        $importedItems = 0;
+        $service = app(RssImportService::class);
+        $gate = app(TriageGate::class);
+
         try {
-            $service = app(RssImportService::class);
-            $result = $service->import($source);
+            // Queued ingestion is the autonomous path: imported items are
+            // ready for G-02 rather than stranded as drafts. Direct service
+            // callers still default to draft unless they opt in explicitly.
+            $result = $service->import($source, [
+                'status' => NewsStatus::Ready->value,
+            ]);
 
             $log->update([
                 'status' => empty($result->errors) ? 'completed' : 'completed',
@@ -88,6 +100,8 @@ class ImportRssSourceJob implements ShouldBeUnique, ShouldQueue
             $source->update([
                 'last_fetched_at' => now(),
             ]);
+
+            $importedItems = $result->importedItems;
         } catch (\Exception $e) {
             $log->update([
                 'status' => 'failed',
@@ -96,6 +110,23 @@ class ImportRssSourceJob implements ShouldBeUnique, ShouldQueue
             ]);
         } finally {
             $lock->release();
+        }
+
+        if ($importedItems > 0
+            && (bool) config('automation.triage.after_import', true)
+            && $gate->enabled()) {
+            $delay = max(0, (int) config('automation.triage.import_dispatch_delay_seconds', 30));
+
+            try {
+                RunTriageJob::dispatch()->delay(now()->addSeconds($delay));
+            } catch (Throwable $exception) {
+                // The articles were imported successfully; a queue outage must
+                // not turn that into a failed import and duplicate retry.
+                Log::warning('RSS import completed but automatic triage could not be queued.', [
+                    'news_source_id' => $source->getKey(),
+                    'error' => $exception->getMessage(),
+                ]);
+            }
         }
     }
 }

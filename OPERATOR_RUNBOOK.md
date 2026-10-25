@@ -241,9 +241,19 @@ Configured feeds: TechCrunch, The Verge, Ars Technica, GitHub Blog, and Hacker N
 
 The command is idempotent: it counts existing ready articles from the selected sources and imports only the missing remainder. It does not call AI providers, render video, upload, or publish. Re-running with the target already met prints `Target already met; no new articles imported.`
 
+The queued `news:import-rss` path (scheduled every 30 minutes) now behaves the same way for triage eligibility: each successful source import stores new items as `ready`, then queues the gated `RunTriageJob` when at least one article was inserted. The job delay coalesces parallel source imports into one triage run, and `ShouldBeUnique` prevents duplicate handshakes.
+
+```dotenv
+AUTOMATION_TRIAGE_ENABLED=true
+AUTOMATION_TRIAGE_AFTER_IMPORT=true
+AUTOMATION_TRIAGE_IMPORT_DELAY_SECONDS=30
+```
+
+A queue worker must be running for the automatic handshake. If the triage gate is disabled at import time, no handshake is queued; the articles stay `ready` and can be picked up by a later manual or automatic run.
+
 ### 5.5 Manual G-02 triage
 
-`ai-pvg:triage` runs the deterministic G-02 pipeline from the terminal. It never calls AI providers or external services; scoring and clustering use local TF-IDF, and outbound HTTP is blocked for the duration of the command.
+`ai-pvg:triage` runs the deterministic G-02 pipeline from the terminal. It never calls AI providers or external services; scoring and clustering use local TF-IDF, and outbound HTTP is blocked for the duration of the command. The queued post-import handshake uses the same `TriageRunner`, so manual and automatic runs apply identical rules.
 
 ```bash
 # Score ready articles that have no news_scores row (same as no flags)
@@ -267,6 +277,16 @@ Behavior:
 | `--cluster` | Groups recent news into 3-5 source story clusters through `StoryClusteringService`, then evaluates each returned cluster through `AutoGreenlightService`. |
 | `--dry-run` | Wraps the entire run in a database transaction, forces auto-greenlight into planned mode, then rolls everything back. No scores, clusters, runs, gates, or scripts are persisted. |
 
+Clustering uses a 48-hour window and a 0.35 TF-IDF cosine threshold by default. The threshold is calibrated against paraphrased same-event coverage (typically 0.39–0.59) while unrelated coverage stays below 0.22. It intentionally matches the scoring coverage threshold so text that counts as same-story evidence for scoring is also eligible to cluster.
+
+When no cluster forms, the command prints diagnostics instead of silently lowering the bar:
+
+- candidate count, window, threshold, and qualifying pair count;
+- the closest pair and its sources;
+- whether the blocker is too few candidates, no pair reaching the threshold, or no 3-5 source component.
+
+This prevents unrelated articles from being grouped just to produce output.
+
 Both controls matter:
 
 - `AUTOMATION_DRY_RUN=true` keeps auto-greenlight planned (no production `VideoScript`) but still persists local triage state such as scores and clusters.
@@ -278,13 +298,38 @@ Prerequisites:
 
 ```dotenv
 AUTOMATION_TRIAGE_ENABLED=true
+AUTOMATION_TRIAGE_AFTER_IMPORT=true
+AUTOMATION_TRIAGE_IMPORT_DELAY_SECONDS=30
 ```
 
 ```bash
 php artisan tinker --execute="App\Models\FeatureFlag::setFlag('triage.news_scoring_enabled', true);"
 ```
 
+The `AUTOMATION_TRIAGE_AFTER_IMPORT` and delay values are only needed for the automatic RSS handshake; the manual command works without them.
+
 `--cluster` alone does not create scores. Run `--run` first, or use `--run --cluster`. With no pre-existing scores, auto-greenlight reports `none` because no member score is available.
+
+RSS rows imported before this fix may still be `draft`. Review the affected rows first and promote only the reviewed source IDs once:
+
+```php
+// Group draft imports by source so the affected feed IDs are explicit.
+App\Models\News::query()
+    ->where('status', 'draft')
+    ->whereNotNull('source_url')
+    ->selectRaw('news_source_id, count(*) as total')
+    ->groupBy('news_source_id')
+    ->get();
+
+// Promote only the reviewed IDs; do not blanket-promote every draft.
+App\Models\News::query()
+    ->where('status', 'draft')
+    ->whereIn('news_source_id', [/* reviewed source IDs */])
+    ->whereNotNull('source_url')
+    ->update(['status' => 'ready']);
+```
+
+After promotion, `php artisan ai-pvg:triage --run --cluster` scores the backlog. New queued imports no longer need this repair.
 
 After a `--dry-run`, the development database should be unchanged:
 
@@ -429,6 +474,10 @@ php artisan test
 # Live technology news (explicit, bounded, inactive sources)
 php artisan news:import-live-tech --limit=10 --per-feed=3
 php artisan rss:import --limit=10 --per-feed=3   # compatibility alias
+
+# Queued RSS ingestion; new items queue the gated G-02 handshake
+php artisan news:import-rss
+php artisan queue:work
 
 # Manual G-02 triage (score, cluster, auto-greenlight; use --dry-run for rollback)
 php artisan ai-pvg:triage

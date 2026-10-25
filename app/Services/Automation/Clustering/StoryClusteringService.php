@@ -29,51 +29,19 @@ class StoryClusteringService
     {
         $this->gate->assertEnabled();
 
-        $asOf = $asOf ? CarbonImmutable::instance($asOf) : CarbonImmutable::now();
-        $windowHours = max(1, (int) config('automation.story_clustering.window_hours', 48));
-        $windowStart = $asOf->subHours($windowHours);
-        $limit = max(3, $limit ?? (int) config('automation.story_clustering.candidate_limit', 200));
-        $threshold = (float) config(
-            'automation.story_clustering.similarity_threshold',
-            config('automation.news_scoring.cluster_similarity_threshold', 0.82),
-        );
-
-        $news = News::query()
-            ->with(['source', 'newsCategory'])
-            ->whereNotNull('published_at')
-            ->whereBetween('published_at', [$windowStart, $asOf])
-            ->where('status', '!=', NewsStatus::Rejected->value)
-            ->orderByDesc('published_at')
-            ->orderByDesc('id')
-            ->limit($limit)
-            ->get();
+        $settings = $this->settings($asOf, $limit);
+        $news = $this->candidates($settings['as_of'], $settings['window_hours'], $settings['limit']);
 
         if ($news->count() < 3) {
             return [];
         }
 
         $newsById = $news->keyBy(fn (News $article): int => (int) $article->getKey());
-        $documents = [];
-
-        foreach ($news as $article) {
-            $documents[(int) $article->getKey()] = $this->similarity->documentTokens(
-                (string) $article->title,
-                $article->summary,
-                $article->content,
-            );
-        }
-
-        $vectors = $this->similarity->tfidfVectors($documents);
-        $cache = [];
-        $pairSimilarity = function (int $left, int $right) use (&$cache, $vectors): float {
-            $key = min($left, $right).':'.max($left, $right);
-
-            return $cache[$key] ??= $this->similarity->cosine($vectors[$left] ?? [], $vectors[$right] ?? []);
-        };
-
+        [$documents, $pairSimilarity] = $this->similarityIndex($news);
+        $threshold = $settings['threshold'];
         $components = $this->connectedComponents(array_keys($documents), $pairSimilarity, $threshold);
-        $minSources = min(5, max(3, (int) config('automation.story_clustering.min_sources', 3)));
-        $maxSources = min(5, max($minSources, (int) config('automation.story_clustering.max_sources', 5)));
+        $minSources = $settings['min_sources'];
+        $maxSources = $settings['max_sources'];
         $clusters = [];
 
         foreach ($components as $component) {
@@ -154,6 +122,99 @@ class StoryClusteringService
         }
 
         return $clusters;
+    }
+
+    /**
+     * Return a read-only explanation of the current clustering window. This
+     * lets operators see why no cluster formed without lowering guardrails
+     * and grouping unrelated coverage.
+     *
+     * @return array<string, mixed>
+     */
+    public function diagnose(?DateTimeInterface $asOf = null, ?int $limit = null): array
+    {
+        $this->gate->assertEnabled();
+
+        $settings = $this->settings($asOf, $limit);
+        $news = $this->candidates($settings['as_of'], $settings['window_hours'], $settings['limit']);
+        $newsById = $news->keyBy(fn (News $article): int => (int) $article->getKey());
+
+        $diagnostics = [
+            'candidate_count' => $news->count(),
+            'window_hours' => $settings['window_hours'],
+            'threshold' => $settings['threshold'],
+            'min_sources' => $settings['min_sources'],
+            'max_sources' => $settings['max_sources'],
+            'qualifying_pairs' => 0,
+            'max_similarity' => 0.0,
+            'component_count' => 0,
+            'valid_component_count' => 0,
+            'nearest_pair' => null,
+        ];
+
+        if ($news->count() < 2) {
+            return $diagnostics;
+        }
+
+        [$documents, $pairSimilarity] = $this->similarityIndex($news);
+        $ids = array_keys($documents);
+        $nearestPair = null;
+        $maxSimilarity = 0.0;
+        $qualifyingPairs = 0;
+
+        for ($i = 0; $i < count($ids); $i++) {
+            for ($j = $i + 1; $j < count($ids); $j++) {
+                $similarity = $pairSimilarity($ids[$i], $ids[$j]);
+
+                if ($similarity >= $settings['threshold']) {
+                    $qualifyingPairs++;
+                }
+
+                if ($nearestPair === null || $similarity > $maxSimilarity) {
+                    $maxSimilarity = $similarity;
+                    $left = $newsById->get($ids[$i]);
+                    $right = $newsById->get($ids[$j]);
+
+                    $nearestPair = [
+                        'left_id' => $ids[$i],
+                        'right_id' => $ids[$j],
+                        'left_title' => (string) ($left?->title ?? 'unknown'),
+                        'right_title' => (string) ($right?->title ?? 'unknown'),
+                        'left_source' => $left !== null ? $this->sourceLabel($left) : 'unknown',
+                        'right_source' => $right !== null ? $this->sourceLabel($right) : 'unknown',
+                        'similarity' => round($similarity, 4),
+                    ];
+                }
+            }
+        }
+
+        $components = $this->connectedComponents($ids, $pairSimilarity, $settings['threshold']);
+        $validComponents = array_filter(
+            $components,
+            function (array $component) use ($newsById, $settings): bool {
+                $members = collect($component)
+                    ->map(fn (int $id): ?News => $newsById->get($id))
+                    ->filter();
+
+                if ($members->count() < 3 || $members->count() > 5) {
+                    return false;
+                }
+
+                return $members
+                    ->map(fn (News $article): string => $this->sourceKey($article))
+                    ->unique()
+                    ->count() >= $settings['min_sources'];
+            },
+        );
+
+        return [
+            ...$diagnostics,
+            'qualifying_pairs' => $qualifyingPairs,
+            'max_similarity' => round($maxSimilarity, 4),
+            'component_count' => count($components),
+            'valid_component_count' => count($validComponents),
+            'nearest_pair' => $nearestPair,
+        ];
     }
 
     /**
@@ -295,6 +356,88 @@ class StoryClusteringService
         ];
 
         return $this->sanitizeFactSheet($factSheet, $validIds);
+    }
+
+    /**
+     * @return array{
+     *     as_of: CarbonImmutable,
+     *     window_hours: int,
+     *     limit: int,
+     *     threshold: float,
+     *     min_sources: int,
+     *     max_sources: int
+     * }
+     */
+    private function settings(?DateTimeInterface $asOf, ?int $limit): array
+    {
+        $asOf = $asOf ? CarbonImmutable::instance($asOf) : CarbonImmutable::now();
+        $windowHours = max(1, (int) config('automation.story_clustering.window_hours', 48));
+        $limit = max(3, $limit ?? (int) config('automation.story_clustering.candidate_limit', 200));
+        $threshold = (float) config(
+            'automation.story_clustering.similarity_threshold',
+            config('automation.news_scoring.cluster_similarity_threshold', 0.35),
+        );
+        $minSources = min(5, max(3, (int) config('automation.story_clustering.min_sources', 3)));
+        $maxSources = min(5, max($minSources, (int) config('automation.story_clustering.max_sources', 5)));
+
+        return [
+            'as_of' => $asOf,
+            'window_hours' => $windowHours,
+            'limit' => $limit,
+            'threshold' => $threshold,
+            'min_sources' => $minSources,
+            'max_sources' => $maxSources,
+        ];
+    }
+
+    /**
+     * @return Collection<int, News>
+     */
+    private function candidates(CarbonImmutable $asOf, int $windowHours, int $limit): Collection
+    {
+        return News::query()
+            ->with(['source', 'newsCategory'])
+            ->whereNotNull('published_at')
+            ->whereBetween('published_at', [$asOf->subHours($windowHours), $asOf])
+            ->where('status', '!=', NewsStatus::Rejected->value)
+            ->orderByDesc('published_at')
+            ->orderByDesc('id')
+            ->limit($limit)
+            ->get();
+    }
+
+    /**
+     * @param  Collection<int, News>  $news
+     * @return array{0: array<int, list<string>>, 1: callable(int, int): float}
+     */
+    private function similarityIndex(Collection $news): array
+    {
+        $documents = [];
+
+        foreach ($news as $article) {
+            $documents[(int) $article->getKey()] = $this->similarity->documentTokens(
+                (string) $article->title,
+                $article->summary,
+                $article->content,
+            );
+        }
+
+        $vectors = $this->similarity->tfidfVectors($documents);
+        $cache = [];
+        $pairSimilarity = function (int $left, int $right) use (&$cache, $vectors): float {
+            $key = min($left, $right).':'.max($left, $right);
+
+            return $cache[$key] ??= $this->similarity->cosine($vectors[$left] ?? [], $vectors[$right] ?? []);
+        };
+
+        return [$documents, $pairSimilarity];
+    }
+
+    private function sourceLabel(News $news): string
+    {
+        $name = trim((string) ($news->source?->name ?? $news->source_name ?? ''));
+
+        return $name !== '' ? $name : 'unknown';
     }
 
     /**

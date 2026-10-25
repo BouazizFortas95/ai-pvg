@@ -189,6 +189,40 @@ class TriageCommandTest extends TestCase
         Http::assertNothingSent();
     }
 
+    public function test_cluster_command_explains_when_no_story_overlap_exists(): void
+    {
+        config(['automation.story_clustering.similarity_threshold' => 0.35]);
+
+        foreach ([
+            ['SpeedCrunch 1.1', 'A fast desktop calculator application.'],
+            ['Instacart reportedly discussed selling itself with DoorDash and Uber', 'Instacart held talks with delivery rivals about a possible sale.'],
+            ['Blue Planet III is keeping the rough edges in the age of AI', 'The BBC documentary returns with new footage and a classic approach.'],
+        ] as $index => [$title, $summary]) {
+            $this->makeNewsWithSource(
+                $title,
+                NewsSource::factory()->create(),
+                [
+                    'summary' => $summary,
+                    'published_at' => now()->subMinutes($index + 1),
+                ],
+            );
+        }
+
+        $exitCode = Artisan::call('ai-pvg:triage', ['--cluster' => true]);
+        $output = Artisan::output();
+
+        $this->assertSame(0, $exitCode);
+        $this->assertStringContainsString('No 3-5 source clusters were formed', $output);
+        $this->assertStringContainsString('Clustering diagnostics', $output);
+        $this->assertStringContainsString('Candidates: 3 recent article(s) in 48h; threshold 0.35', $output);
+        $this->assertStringContainsString('Closest pair:', $output);
+        $this->assertStringContainsString('No pair reached the threshold', $output);
+
+        $this->assertDatabaseCount('story_clusters', 0);
+        $this->assertDatabaseCount('automation_runs', 0);
+        Http::assertNothingSent();
+    }
+
     /**
      * @return array<int, News>
      */

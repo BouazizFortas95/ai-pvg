@@ -110,6 +110,10 @@ return [
         'feature_flag' => env('AUTOMATION_TRIAGE_FEATURE_FLAG', 'triage.news_scoring_enabled'),
         'language' => env('AUTOMATION_TRIAGE_LANGUAGE', 'en'),
         'target_duration' => (int) env('AUTOMATION_TRIAGE_TARGET_DURATION', 45),
+        // Queue the gated G-02 handshake after an RSS source imports new items.
+        'after_import' => (bool) env('AUTOMATION_TRIAGE_AFTER_IMPORT', true),
+        // Coalesce parallel source imports into one triage run.
+        'import_dispatch_delay_seconds' => (int) env('AUTOMATION_TRIAGE_IMPORT_DELAY_SECONDS', 30),
     ],
 
     'news_scoring' => [
@@ -122,7 +126,9 @@ return [
         'coverage_similarity_threshold' => (float) env('AUTOMATION_COVERAGE_SIMILARITY', 0.35),
         'recency_half_life_hours' => (int) env('AUTOMATION_RECENCY_HALF_LIFE_HOURS', 24),
         'novelty_window_days' => (int) env('AUTOMATION_NOVELTY_WINDOW_DAYS', 7),
-        'cluster_similarity_threshold' => (float) env('AUTOMATION_CLUSTER_SIMILARITY', 0.82),
+        // Kept aligned with clustering: text that counts as same-story
+        // coverage for scoring must also be eligible to cluster.
+        'cluster_similarity_threshold' => (float) env('AUTOMATION_CLUSTER_SIMILARITY', 0.35),
         'weights' => [
             'velocity' => 0.35,
             'keyword_heat' => 0.25,
@@ -157,7 +163,9 @@ return [
     'story_clustering' => [
         'window_hours' => (int) env('AUTOMATION_CLUSTER_WINDOW_HOURS', 48),
         'candidate_limit' => (int) env('AUTOMATION_CLUSTER_CANDIDATE_LIMIT', 200),
-        'similarity_threshold' => (float) env('AUTOMATION_CLUSTER_SIMILARITY', 0.82),
+        // Calibrated against paraphrased same-event coverage (0.39-0.59)
+        // versus unrelated articles (<0.22) with the local TF-IDF model.
+        'similarity_threshold' => (float) env('AUTOMATION_CLUSTER_SIMILARITY', 0.35),
         'min_sources' => (int) env('AUTOMATION_CLUSTER_MIN_SOURCES', 3),
         'max_sources' => (int) env('AUTOMATION_CLUSTER_MAX_SOURCES', 5),
     ],

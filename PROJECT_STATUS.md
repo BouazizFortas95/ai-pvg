@@ -59,11 +59,12 @@ The earlier G-05/G-06 commit message did not name Phase H; the checkpoint hash i
 
 ## 4. Automated Test Suite Status
 
-- **Latest full run:** `269 passed` · `2265 assertions` · `0 failures` · `0 risky`.
+- **Latest full run:** `276 passed` · `2321 assertions` · `0 failures` · `0 risky`.
 - **Phase H suite:** `12 passed` · `53 assertions` · `0 failures`.
 - **Dry-run walkthrough suite:** `1 passed` · `864 assertions` · `0 failures` · `0 risky`.
 - **Live tech import suite:** `3 passed` · `31 assertions` · `0 failures`.
-- **Manual triage command suite:** `5 passed` · `58 assertions` · `0 failures`.
+- **Manual triage command suite:** `6 passed` · `67 assertions` · `0 failures`.
+- **RSS → triage handshake suite:** `4 passed` · `22 assertions` · `0 failures`.
 - **Isolation:** `phpunit.xml` forces SQLite `:memory:`; tests never touch the dev database.
 - **Network discipline:** every Phase H test and the walkthrough call `Http::preventStrayRequests()`; no YouTube, provider, crawler, or paid call is made.
 - **Verification command:** `php artisan test`.
@@ -167,6 +168,17 @@ Any missing gate, exhausted budget, open/half-open breaker, or missing budget ta
 - `--dry-run` wraps the entire run in a transaction, forces planned greenlight output, and rolls back scores, clusters, automation runs, approval gates, and scripts.
 - A dry run against the current development database scored 11 articles and made zero persistent changes (`news_scores=0`, `story_clusters=0`, `automation_runs=0`, `video_scripts=0`).
 - Usage is documented in `OPERATOR_RUNBOOK.md` §5.5 and the command quick reference.
+
+### 6.9 RSS ingestion → G-02 handshake
+
+- Root cause of the “No unscored ready articles found” report was an import lifecycle mismatch: queued `ImportRssSourceJob` runs stored items as `draft`, while triage only scores `status=ready`. The 11 pre-existing ready rows were already scored, so 71 fresh RSS rows were invisible to G-02.
+- Queued imports now pass `status=ready` to `RssImportService`. Direct service callers still default to `draft` unless they opt in.
+- After a source imports at least one new item, `ImportRssSourceJob` queues `RunTriageJob` when the triage gate is enabled. The job is unique, delayed to coalesce parallel feed imports, rechecks the gate, and performs no HTTP calls.
+- `TriageRunner` is shared by `ai-pvg:triage` and the queued handshake, so scoring, clustering, diagnostics, dry-run behavior, and auto-greenlight rules cannot drift.
+- Story clustering now uses a 0.35 TF-IDF cosine threshold instead of 0.82. Calibration showed paraphrased same-event coverage scoring 0.39–0.59 while unrelated coverage stayed below 0.22; the threshold matches the scoring coverage threshold.
+- When no cluster forms, the command reports candidate count, threshold, qualifying pairs, and the closest pair instead of lowering the threshold into false positives.
+- The 71 legacy draft imports in the development database were promoted once; `ai-pvg:triage --run --cluster` then scored all 71 (82 total scores), found 51 recent candidates, and correctly reported zero 3-5 source clusters because no pair reached 0.35 (closest pair 0.21). The command created no auto-greenlight run or script for unrelated coverage.
+- Feature coverage: `RssTriagePipelineTest` proves imported RSS items become ready, are scored, clustered, and reach planned auto-greenlight; disabled gates suppress both the queued handshake and the job; `StoryClusteringServiceTest` proves paraphrased multi-source coverage clusters while unrelated articles do not.
 
 ---
 

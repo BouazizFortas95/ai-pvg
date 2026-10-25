@@ -2,13 +2,10 @@
 
 namespace App\Console\Commands;
 
-use App\Enums\NewsStatus;
-use App\Models\News;
-use App\Services\Automation\Clustering\StoryClusteringService;
-use App\Services\Automation\Greenlight\AutoGreenlightService;
 use App\Services\Automation\Greenlight\GreenlightResult;
-use App\Services\Automation\Scoring\NewsScoringService;
 use App\Services\Automation\Triage\TriageGate;
+use App\Services\Automation\Triage\TriageReport;
+use App\Services\Automation\Triage\TriageRunner;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -23,9 +20,7 @@ class TriageCommand extends Command
 
     public function handle(
         TriageGate $gate,
-        NewsScoringService $scoring,
-        StoryClusteringService $clustering,
-        AutoGreenlightService $greenlight,
+        TriageRunner $runner,
     ): int {
         // Triage is deterministic and local. Blocking HTTP turns any accidental
         // provider or crawler call into a loud failure instead of a side effect.
@@ -67,7 +62,8 @@ class TriageCommand extends Command
                 config(['automation.dry_run' => true]);
             }
 
-            $summary = $this->triage($runScoring, $runClustering, $scoring, $clustering, $greenlight);
+            $report = $runner->run($runScoring, $runClustering);
+            $summary = $this->summarize($report, $runScoring, $runClustering);
 
             if ($commandDryRun) {
                 DB::rollBack();
@@ -103,54 +99,39 @@ class TriageCommand extends Command
      *     clustering_requested: bool,
      *     scored: list<array<int, int|string>>,
      *     clusters: list<array<int, int|string>>,
-     *     greenlights: list<array<int, int|string>>
+     *     greenlights: list<array<int, int|string>>,
+     *     cluster_diagnostics: array<string, mixed>
      * }
      */
-    private function triage(
-        bool $runScoring,
-        bool $runClustering,
-        NewsScoringService $scoring,
-        StoryClusteringService $clustering,
-        AutoGreenlightService $greenlight,
-    ): array {
+    private function summarize(TriageReport $report, bool $runScoring, bool $runClustering): array
+    {
         $summary = $this->emptySummary($runScoring, $runClustering);
 
-        if ($runScoring) {
-            $news = News::query()
-                ->with('source')
-                ->where('status', NewsStatus::Ready->value)
-                ->whereDoesntHave('newsScore')
-                ->orderByDesc('published_at')
-                ->orderByDesc('id')
-                ->get();
+        foreach ($report->scores as $newsId => $score) {
+            $article = $score->news;
 
-            $scores = $scoring->scoreMany($news);
-
-            foreach ($scores as $newsId => $score) {
-                $article = $news->first(
-                    fn (News $candidate): bool => (int) $candidate->getKey() === (int) $newsId,
-                );
-
-                if ($article === null) {
-                    continue;
-                }
-
-                $summary['scored'][] = [
-                    (int) $newsId,
-                    (string) ($article->source?->name ?? $article->source_name ?? 'unknown'),
-                    Str::limit((string) $article->title, 56),
-                    $score->band->value,
-                    number_format((float) $score->composite_score, 2),
-                ];
+            if ($article === null) {
+                continue;
             }
+
+            $article->loadMissing('source');
+
+            $summary['scored'][] = [
+                (int) $newsId,
+                (string) ($article->source?->name ?? $article->source_name ?? 'unknown'),
+                Str::limit((string) $article->title, 56),
+                $score->band->value,
+                number_format((float) $score->composite_score, 2),
+            ];
         }
 
         if ($runClustering) {
-            foreach ($clustering->cluster() as $cluster) {
+            foreach ($report->clusters as $cluster) {
                 $topScore = $cluster->maxCompositeScore();
+                $clusterId = (int) $cluster->getKey();
 
                 $summary['clusters'][] = [
-                    (int) $cluster->getKey(),
+                    $clusterId,
                     Str::limit((string) $cluster->canonical_title, 52),
                     implode(', ', $cluster->newsIds()),
                     (int) $cluster->source_count,
@@ -158,16 +139,22 @@ class TriageCommand extends Command
                     number_format($topScore, 2),
                 ];
 
-                $result = $greenlight->evaluateCluster($cluster);
+                $result = $report->greenlights[$clusterId] ?? null;
+
+                if ($result === null) {
+                    continue;
+                }
 
                 $summary['greenlights'][] = [
-                    (int) $cluster->getKey(),
+                    $clusterId,
                     $result->action,
                     $result->band->value,
                     number_format($result->score, 2),
                     $this->greenlightOutcome($result),
                 ];
             }
+
+            $summary['cluster_diagnostics'] = $report->clusterDiagnostics;
         }
 
         return $summary;
@@ -179,7 +166,8 @@ class TriageCommand extends Command
      *     clustering_requested: bool,
      *     scored: list<array<int, int|string>>,
      *     clusters: list<array<int, int|string>>,
-     *     greenlights: list<array<int, int|string>>
+     *     greenlights: list<array<int, int|string>>,
+     *     cluster_diagnostics: array<string, mixed>
      * }
      */
     private function emptySummary(bool $runScoring, bool $runClustering): array
@@ -190,6 +178,7 @@ class TriageCommand extends Command
             'scored' => [],
             'clusters' => [],
             'greenlights' => [],
+            'cluster_diagnostics' => [],
         ];
     }
 
@@ -199,7 +188,8 @@ class TriageCommand extends Command
      *     clustering_requested: bool,
      *     scored: list<array<int, int|string>>,
      *     clusters: list<array<int, int|string>>,
-     *     greenlights: list<array<int, int|string>>
+     *     greenlights: list<array<int, int|string>>,
+     *     cluster_diagnostics: array<string, mixed>
      * }  $summary
      */
     private function renderSummary(array $summary): void
@@ -234,6 +224,7 @@ class TriageCommand extends Command
 
         if ($summary['clusters'] === []) {
             $this->line('No 3-5 source clusters were formed for the configured window.');
+            $this->renderClusteringDiagnostics($summary['cluster_diagnostics']);
         } else {
             $this->table(
                 ['Cluster', 'Canonical title', 'Members', 'Sources', 'Confidence', 'Top score'],
@@ -266,6 +257,54 @@ class TriageCommand extends Command
         }
 
         $this->line('Greenlight actions: '.implode(', ', $labels).'.');
+    }
+
+    /**
+     * @param  array<string, mixed>  $diagnostics
+     */
+    private function renderClusteringDiagnostics(array $diagnostics): void
+    {
+        if ($diagnostics === []) {
+            return;
+        }
+
+        $candidates = (int) ($diagnostics['candidate_count'] ?? 0);
+        $threshold = number_format((float) ($diagnostics['threshold'] ?? 0), 2);
+        $windowHours = (int) ($diagnostics['window_hours'] ?? 0);
+        $qualifyingPairs = (int) ($diagnostics['qualifying_pairs'] ?? 0);
+
+        $this->newLine();
+        $this->line('Clustering diagnostics');
+        $this->line(
+            "Candidates: {$candidates} recent article(s) in {$windowHours}h; "
+            ."threshold {$threshold}; {$qualifyingPairs} pair(s) at or above threshold.",
+        );
+
+        $nearest = $diagnostics['nearest_pair'] ?? null;
+
+        if (is_array($nearest)) {
+            $this->line(
+                'Closest pair: '.number_format((float) ($nearest['similarity'] ?? 0), 2)
+                .' — "'.($nearest['left_title'] ?? 'unknown').'" ('.($nearest['left_source'] ?? 'unknown').')'
+                .' <> "'.($nearest['right_title'] ?? 'unknown').'" ('.($nearest['right_source'] ?? 'unknown').').',
+            );
+        }
+
+        if ($candidates < 3) {
+            $this->line('At least 3 candidate articles are required to form a cluster.');
+
+            return;
+        }
+
+        if ($qualifyingPairs === 0) {
+            $this->line('No pair reached the threshold, so triage did not group unrelated articles to force a cluster.');
+
+            return;
+        }
+
+        if ((int) ($diagnostics['valid_component_count'] ?? 0) === 0) {
+            $this->line('Similar pairs were found, but no component contained 3-5 distinct sources.');
+        }
     }
 
     private function greenlightOutcome(GreenlightResult $result): string
