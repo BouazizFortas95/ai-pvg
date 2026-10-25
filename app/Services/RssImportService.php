@@ -4,22 +4,25 @@ namespace App\Services;
 
 use App\Enums\NewsStatus;
 use App\Models\News;
+use App\Models\NewsCategory;
 use App\Models\NewsSource;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 
 class RssImportService
 {
+    public function __construct(private readonly NewsCategoryResolver $categories) {}
+
     /**
      * Import a feed.
      *
-     * Optional controls keep the legacy job behavior unchanged while letting
-     * bounded operator commands set a category and mark imported items ready:
+     * Optional controls:
      *
      * - limit: stop after this many successful inserts
      * - status: NewsStatus value for inserted articles (default: draft)
-     * - news_category_id: structured category foreign key
-     * - category: legacy category label (default: Uncategorized)
+     * - news_category_id: explicit category override; when omitted, article
+     *   tags/feed categories/content are resolved automatically
+     * - category: fallback label used only when no category can be detected
      *
      * @param  array{limit?: int|null, status?: string|null, news_category_id?: int|null, category?: string|null}  $options
      */
@@ -64,14 +67,16 @@ class RssImportService
         $limit = isset($options['limit']) ? max(0, (int) $options['limit']) : null;
         $status = NewsStatus::tryFrom((string) ($options['status'] ?? '')) ?? NewsStatus::Draft;
         $categoryId = isset($options['news_category_id']) ? (int) $options['news_category_id'] : null;
-        $categoryLabel = trim((string) ($options['category'] ?? '')) ?: __('Uncategorized');
+        $overrideCategory = $categoryId !== null ? NewsCategory::query()->find($categoryId) : null;
+        $fallbackCategory = trim((string) ($options['category'] ?? ''))
+            ?: (string) config('news_categories.fallback', __('Uncategorized'));
 
         foreach ($items as $item) {
             if ($limit !== null && $result->importedItems >= $limit) {
                 break;
             }
 
-            $this->processItem($item, $source, $result, $status, $categoryId, $categoryLabel);
+            $this->processItem($item, $source, $result, $status, $overrideCategory, $fallbackCategory);
         }
 
         $result->complete();
@@ -119,32 +124,47 @@ class RssImportService
 
         $items = [];
         if (isset($sxml->channel)) {
+            $feedCategories = $this->extractCategories($sxml->channel);
+
             foreach ($sxml->channel->item as $item) {
-                $items[] = $this->extractRssItem($item);
+                $items[] = $this->extractRssItem($item, $feedCategories);
             }
         }
         if (isset($sxml->entry)) {
+            $feedCategories = $this->extractCategories($sxml);
+
             foreach ($sxml->entry as $entry) {
-                $items[] = $this->extractAtomEntry($entry);
+                $items[] = $this->extractAtomEntry($entry, $feedCategories);
             }
         }
 
         return $items;
     }
 
-    protected function extractRssItem(\SimpleXMLElement $item): array
+    /**
+     * @param  list<string>  $feedCategories
+     */
+    protected function extractRssItem(\SimpleXMLElement $item, array $feedCategories = []): array
     {
+        $contentNamespace = $item->children('http://purl.org/rss/1.0/modules/content/');
+        $encodedContent = trim((string) ($contentNamespace->encoded ?? ''));
+
         return [
             'title' => trim((string) ($item->title ?? '')),
             'url' => trim((string) ($item->link ?? '')),
             'description' => trim((string) ($item->description ?? $item->summary ?? '')),
-            'content' => trim((string) ($item->content ?? '')),
+            'content' => $encodedContent !== '' ? $encodedContent : trim((string) ($item->content ?? '')),
             'published_at' => trim((string) ($item->pubDate ?? '')),
             'image_url' => trim((string) ($item->media ?? '')),
+            'categories' => $this->extractCategories($item),
+            'feed_categories' => $feedCategories,
         ];
     }
 
-    protected function extractAtomEntry(\SimpleXMLElement $entry): array
+    /**
+     * @param  list<string>  $feedCategories
+     */
+    protected function extractAtomEntry(\SimpleXMLElement $entry, array $feedCategories = []): array
     {
         $content = '';
         if (isset($entry->content)) {
@@ -183,7 +203,58 @@ class RssImportService
             'content' => $content,
             'published_at' => trim((string) ($entry->published ?? $entry->updated ?? '')),
             'image_url' => $imageUrl,
+            'categories' => $this->extractCategories($entry),
+            'feed_categories' => $feedCategories,
         ];
+    }
+
+    /**
+     * Read RSS/Atom category elements plus Dublin Core subjects and MRSS
+     * keywords. These are hints only; the resolver owns canonicalization.
+     *
+     * @return list<string>
+     */
+    protected function extractCategories(\SimpleXMLElement $node): array
+    {
+        $categories = [];
+
+        foreach ($node->category as $category) {
+            $label = trim((string) ($category['label'] ?? ''));
+            $term = trim((string) ($category['term'] ?? ''));
+            $value = $label !== '' ? $label : ($term !== '' ? $term : trim((string) $category));
+
+            $this->pushCategoryValue($categories, $value);
+        }
+
+        $dublinCore = $node->children('http://purl.org/dc/elements/1.1/');
+
+        foreach ($dublinCore->subject as $subject) {
+            $this->pushCategoryValue($categories, (string) $subject);
+        }
+
+        $media = $node->children('http://search.yahoo.com/mrss/');
+
+        if (isset($media->keywords)) {
+            foreach (preg_split('/[,|]/', (string) $media->keywords) ?: [] as $keyword) {
+                $this->pushCategoryValue($categories, $keyword);
+            }
+        }
+
+        return array_values(array_unique($categories));
+    }
+
+    /**
+     * @param  list<string>  $categories
+     */
+    protected function pushCategoryValue(array &$categories, string $value): void
+    {
+        foreach (preg_split('/[|;]/', $value) ?: [] as $part) {
+            $part = trim(html_entity_decode(strip_tags($part), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+
+            if ($part !== '') {
+                $categories[] = $part;
+            }
+        }
     }
 
     protected function processItem(
@@ -191,8 +262,8 @@ class RssImportService
         NewsSource $source,
         ImportResult $result,
         NewsStatus $status,
-        ?int $categoryId,
-        string $categoryLabel,
+        ?NewsCategory $overrideCategory,
+        string $fallbackCategory,
     ): void {
         if (empty($item['title'])) {
             $result->skippedItems++;
@@ -223,6 +294,16 @@ class RssImportService
         $content = $this->sanitizeHtml($item['content'] ?? $item['description'] ?? '');
 
         try {
+            $category = $overrideCategory ?? $this->categories->resolveArticle(
+                itemCategories: $item['categories'] ?? [],
+                title: (string) $item['title'],
+                summary: $summary,
+                content: $content,
+                fallback: $fallbackCategory,
+                feedCategories: $item['feed_categories'] ?? [],
+                sourceName: (string) $source->name,
+            );
+
             News::create([
                 'title' => $item['title'],
                 'slug' => $slug,
@@ -231,10 +312,10 @@ class RssImportService
                 'source_url' => $item['url'],
                 'source_name' => $source->name,
                 'image' => $item['image_url'],
-                'category' => $categoryLabel,
+                'category' => $category->slug ?: (Str::slug((string) $category->name) ?: 'uncategorized'),
                 'status' => $status->value,
                 'published_at' => $this->parseDate($item['published_at']),
-                'news_category_id' => $categoryId,
+                'news_category_id' => $category->getKey(),
                 'news_source_id' => $source->getKey(),
                 'normalized_source_url' => $normalizedUrl,
                 'normalized_title' => $normalizedTitle,

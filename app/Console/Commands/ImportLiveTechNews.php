@@ -14,9 +14,9 @@ use Throwable;
 class ImportLiveTechNews extends Command
 {
     /**
-     * Verified public technology feeds. Sources are stored inactive so the
-     * scheduled news:import-rss command never adds articles in the
-     * background; only this explicit command imports them.
+     * Verified public technology feeds. Newly created source rows are stored
+     * inactive so scheduled/broad importers skip them until an operator
+     * deliberately activates them.
      *
      * @var array<string, array{name: string, slug: string, website_url: string, rss_url: string, description: string}>
      */
@@ -64,13 +64,6 @@ class ImportLiveTechNews extends Command
         {--feed=* : Feed keys to use (techcrunch, verge, arstechnica, github, hackernews)}';
 
     protected $description = 'Fetch verified public tech RSS feeds and populate the local news table (no AI, rendering, or publishing)';
-
-    /**
-     * Compatibility alias for operators used to an `rss:import` command.
-     *
-     * @var list<string>
-     */
-    protected $aliases = ['rss:import'];
 
     public function handle(RssImportService $importer): int
     {
@@ -159,8 +152,9 @@ class ImportLiveTechNews extends Command
                 $result = $importer->import($source, [
                     'limit' => $batchLimit,
                     'status' => NewsStatus::Ready->value,
-                    'news_category_id' => (int) $category->getKey(),
-                    'category' => 'technology',
+                    // Article tags and content win; Technology is only the
+                    // fallback when a feed provides no usable category hint.
+                    'category' => $category->slug,
                 ]);
             } catch (Throwable $exception) {
                 $failures[] = $feed['name'].': '.$exception->getMessage();

@@ -61,12 +61,16 @@ class RssTriagePipelineTest extends TestCase
             ImportRssSourceJob::dispatchSync($source->getKey());
         }
 
-        $news = News::query()->orderBy('id')->get();
+        $news = News::query()->with('newsCategory')->orderBy('id')->get();
 
         $this->assertCount(3, $news);
         $this->assertTrue($news->every(
             fn (News $article): bool => $article->status === NewsStatus::Ready,
         ));
+        $this->assertEqualsCanonicalizing(
+            ['Artificial Intelligence', 'Security', 'Startups'],
+            $news->pluck('newsCategory.name')->all(),
+        );
 
         $this->assertDatabaseCount('news_scores', 3);
         $this->assertDatabaseCount('story_clusters', 1);
@@ -75,6 +79,10 @@ class RssTriagePipelineTest extends TestCase
         $cluster = News::query()->firstOrFail()->storyClusters()->firstOrFail();
         $this->assertSame(3, (int) $cluster->source_count);
         $this->assertSame(3, $cluster->news()->count());
+        $this->assertCount(
+            3,
+            $cluster->news()->with('newsCategory')->get()->pluck('newsCategory.name')->unique(),
+        );
 
         $this->assertDatabaseCount('automation_runs', 1);
         $this->assertDatabaseCount('video_scripts', 0);
@@ -160,12 +168,13 @@ class RssTriagePipelineTest extends TestCase
                 $story['title'],
                 'Breaking exclusive report: the launch is a security and breach crisis record for the AI model.',
                 'https://'.$host.'/story',
+                $story['category'],
             ));
         });
     }
 
     /**
-     * @return array<string, array{name: string, slug: string, title: string}>
+     * @return array<string, array{name: string, slug: string, title: string, category: string}>
      */
     private function storyFeeds(): array
     {
@@ -174,29 +183,34 @@ class RssTriagePipelineTest extends TestCase
                 'name' => 'Alpha Wire',
                 'slug' => 'alpha-wire',
                 'title' => 'OpenAI releases GPT-5 with improved reasoning',
+                'category' => 'AI',
             ],
             'beta.example.test' => [
                 'name' => 'Beta Daily',
                 'slug' => 'beta-daily',
                 'title' => 'OpenAI’s GPT-5 is here and it is better at reasoning',
+                'category' => 'Security',
             ],
             'gamma.example.test' => [
                 'name' => 'Gamma Review',
                 'slug' => 'gamma-review',
                 'title' => 'GPT-5 launch: OpenAI says its new model improves reasoning',
+                'category' => 'Startups',
             ],
         ];
     }
 
-    private function feedXml(string $title, string $summary, string $url): string
+    private function feedXml(string $title, string $summary, string $url, string $category): string
     {
         $title = htmlspecialchars($title, ENT_XML1 | ENT_QUOTES, 'UTF-8');
         $summary = htmlspecialchars($summary, ENT_XML1 | ENT_QUOTES, 'UTF-8');
+        $category = htmlspecialchars($category, ENT_XML1 | ENT_QUOTES, 'UTF-8');
         $published = now()->subMinutes(3)->toRssString();
 
         return '<?xml version="1.0" encoding="UTF-8"?>'
             .'<rss version="2.0"><channel><title>Test feed</title><item>'
-            ."<title>{$title}</title><link>{$url}</link><description>{$summary}</description>"
+            ."<title>{$title}</title><link>{$url}</link><category>{$category}</category>"
+            ."<description>{$summary}</description>"
             ."<pubDate>{$published}</pubDate></item></channel></rss>";
     }
 }

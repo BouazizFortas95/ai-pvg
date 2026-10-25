@@ -28,7 +28,8 @@ class ImportRssSourceJob implements ShouldBeUnique, ShouldQueue
     public array $backoff = [30, 120];
 
     public function __construct(
-        public int $newsSourceId
+        public int $newsSourceId,
+        public ?int $limit = null,
     ) {}
 
     public function uniqueId(): string
@@ -82,9 +83,13 @@ class ImportRssSourceJob implements ShouldBeUnique, ShouldQueue
             // Queued ingestion is the autonomous path: imported items are
             // ready for G-02 rather than stranded as drafts. Direct service
             // callers still default to draft unless they opt in explicitly.
-            $result = $service->import($source, [
-                'status' => NewsStatus::Ready->value,
-            ]);
+            $options = ['status' => NewsStatus::Ready->value];
+
+            if ($this->limit !== null) {
+                $options['limit'] = max(0, $this->limit);
+            }
+
+            $result = $service->import($source, $options);
 
             $log->update([
                 'status' => empty($result->errors) ? 'completed' : 'completed',

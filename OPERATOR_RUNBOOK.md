@@ -222,9 +222,22 @@ php artisan test
 
 The full suite must end with `0 failures` and `0 risky`. Tests never touch `database/database.sqlite`.
 
-### 5.4 Live technology news ingestion
+### 5.4 RSS news ingestion and dynamic categories
 
-`news:import-live-tech` is an explicit, bounded importer for verified public technology feeds. It reuses `RssImportService` and `NewsDuplicateService`, marks imported articles `ready`, and links them to the `Technology` category.
+`rss:import` is the broad synchronous importer. It fetches every available article from every active `NewsSource` with a non-empty RSS URL, with no category filter and no default item cap. Imported items are stored as `ready` so G-02 can score them immediately.
+
+```bash
+# Import all available articles from all active sources
+php artisan rss:import
+
+# Import one active source (still all of its available items)
+php artisan rss:import --source=3
+
+# Optional operator caps; omit them for unrestricted ingestion
+php artisan rss:import --limit=20 --per-feed=5
+```
+
+`news:import-live-tech` remains a separate bounded importer for the five verified public technology feeds. It ensures a target number of ready articles and stops at `--per-feed`. Newly created source rows are stored **inactive**; activate a source deliberately to include it in `rss:import` or the scheduled `news:import-rss` dispatcher. It no longer aliases `rss:import`.
 
 ```bash
 # Import/ensure 10 ready articles, maximum 3 per feed
@@ -232,14 +245,26 @@ php artisan news:import-live-tech --limit=10 --per-feed=3
 
 # Restrict to specific feeds
 php artisan news:import-live-tech --limit=6 --per-feed=2 --feed=techcrunch --feed=verge
-
-# Compatibility alias for the same bounded live importer
-php artisan rss:import --limit=10 --per-feed=3
 ```
 
-Configured feeds: TechCrunch, The Verge, Ars Technica, GitHub Blog, and Hacker News. Their `NewsSource` rows are stored **inactive** so the scheduled `news:import-rss` command never adds articles in the background; only this explicit command imports them. `rss:import` is an alias of `news:import-live-tech`, not of the queued `news:import-rss` dispatcher.
+Configured live feeds: TechCrunch, The Verge, Ars Technica, GitHub Blog, and Hacker News. The live-tech command is idempotent: it counts existing ready articles from the selected sources and imports only the missing remainder. It does not call AI providers, render video, upload, or publish. Re-running with the target already met prints `Target already met; no new articles imported.`
 
-The command is idempotent: it counts existing ready articles from the selected sources and imports only the missing remainder. It does not call AI providers, render video, upload, or publish. Re-running with the target already met prints `Target already met; no new articles imported.`
+#### Dynamic category discovery
+
+RSS `<category>`, Atom `term`/`label`, Dublin Core `subject`, and MRSS `keywords` values are parsed. Resolution order is:
+
+1. Specific article tag
+2. Generic article tag (for example `Technology` or `News`)
+3. Content detection from the title/body
+4. Specific then generic feed-level category
+5. `NEWS_DEFAULT_CATEGORY` (default `Uncategorized`)
+
+Existing categories are reused case-insensitively by name or slug. Common variants are canonicalized through `config/news_categories.php` aliases (for example `AI` → `Artificial Intelligence`, `cybersecurity` → `Security`). Unknown labels are created automatically as active `news_categories` rows, so an article is never dropped because its category is missing. Content-only detection requires the weighted score to reach `NEWS_CATEGORY_DETECTION_MIN_SCORE`; explicit RSS tags bypass that threshold.
+
+```dotenv
+NEWS_DEFAULT_CATEGORY=Uncategorized
+NEWS_CATEGORY_DETECTION_MIN_SCORE=2.0
+```
 
 The queued `news:import-rss` path (scheduled every 30 minutes) now behaves the same way for triage eligibility: each successful source import stores new items as `ready`, then queues the gated `RunTriageJob` when at least one article was inserted. The job delay coalesces parallel source imports into one triage run, and `ShouldBeUnique` prevents duplicate handshakes.
 
@@ -471,9 +496,12 @@ php artisan test --filter=EndToEndAutomationDryRunWalkthroughTest
 vendor/bin/pint --test
 php artisan test
 
+# Broad RSS ingestion (all active sources, all available articles)
+php artisan rss:import
+php artisan rss:import --source=3 --per-feed=5   # optional scoping/caps
+
 # Live technology news (explicit, bounded, inactive sources)
 php artisan news:import-live-tech --limit=10 --per-feed=3
-php artisan rss:import --limit=10 --per-feed=3   # compatibility alias
 
 # Queued RSS ingestion; new items queue the gated G-02 handshake
 php artisan news:import-rss

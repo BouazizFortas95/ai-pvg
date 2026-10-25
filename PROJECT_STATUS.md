@@ -32,7 +32,7 @@ The delivered MVP is **implemented and tested**. External live boundaries (paid 
 | **Current branch** | `main` | `git branch --show-current` |
 | **Phase H foundation checkpoint** | `fdf950c feat(automation): complete G-05 visual asset harvester scene props remotion dynamic` | `git show -s --oneline fdf950c` |
 | **Phase H completion delta** | Read-only `PublishingStateResource` / `CoPilotSessionResource`, Studio publishing/Co-Pilot oversight, strict `PublishingGate` + dual-admin guard, comprehensive autopilot gate, diagnostics, tests, and documentation. | `git show --stat HEAD` after the completion commit |
-| **Working tree** | Clean after the `rss:import` compatibility alias commit; dev SQLite remains ignored and uncommitted. | `git status --short` |
+| **Working tree** | Uncommitted dynamic RSS category/import enhancement (resolver, broad `rss:import`, tests, docs); dev SQLite remains ignored and uncommitted. | `git status --short` |
 | **Database file** | `database/database.sqlite` is ignored by Git and was not staged. | `git check-ignore database/database.sqlite` |
 
 The earlier G-05/G-06 commit message did not name Phase H; the checkpoint hash is authoritative. No history rewrite was performed during the Phase H completion pass.
@@ -59,12 +59,13 @@ The earlier G-05/G-06 commit message did not name Phase H; the checkpoint hash i
 
 ## 4. Automated Test Suite Status
 
-- **Latest full run:** `276 passed` · `2321 assertions` · `0 failures` · `0 risky`.
+- **Latest full run:** `281 passed` · `2371 assertions` · `0 failures` · `0 risky`.
 - **Phase H suite:** `12 passed` · `53 assertions` · `0 failures`.
 - **Dry-run walkthrough suite:** `1 passed` · `864 assertions` · `0 failures` · `0 risky`.
-- **Live tech import suite:** `3 passed` · `31 assertions` · `0 failures`.
+- **Live tech import suite:** `3 passed` · `32 assertions` · `0 failures`.
+- **Dynamic category/import suite:** `5 passed` · `47 assertions` · `0 failures`.
 - **Manual triage command suite:** `6 passed` · `67 assertions` · `0 failures`.
-- **RSS → triage handshake suite:** `4 passed` · `22 assertions` · `0 failures`.
+- **RSS → triage handshake suite:** `4 passed` · `24 assertions` · `0 failures`.
 - **Isolation:** `phpunit.xml` forces SQLite `:memory:`; tests never touch the dev database.
 - **Network discipline:** every Phase H test and the walkthrough call `Http::preventStrayRequests()`; no YouTube, provider, crawler, or paid call is made.
 - **Verification command:** `php artisan test`.
@@ -79,7 +80,7 @@ The earlier G-05/G-06 commit message did not name Phase H; the checkpoint hash i
 
 | # | Subsystem | Implementation | Automated Tests | Live Integration | Status |
 |---|-----------|:---:|:---:|:---:|:---|
-| 1 | News CRUD, sources, RSS, duplicate detection | Yes | Yes | Yes (historical) | **DONE** |
+| 1 | News CRUD, sources, dynamic RSS categories, duplicate detection | Yes | Yes | Yes (historical) | **DONE** |
 | 2 | AI script generation (legacy single prompt) | Yes | Mocked | Not live-verified | **PARTIAL** external boundary |
 | 3 | TTS and voice generation | Yes | Mocked | Not live-verified | **PARTIAL** external boundary |
 | 4 | Remotion rendering + FFprobe verification | Yes | Yes | **Yes (real MP4s)** | **INTEGRATION VERIFIED** |
@@ -151,13 +152,16 @@ Any missing gate, exhausted budget, open/half-open breaker, or missing budget ta
 - The G-05 path was corrected during the walkthrough: `ScenePropBuilder` now maps verified `SceneAsset` records to their `VisualAsset` storage path and attribution, `RemotionPropInjector` emits the full props object as `sceneProps`, and `remotion/src/VideoScript.tsx` destructures `visualAssets`.
 - A real local render was executed with `php artisan ai-pvg:verify-mp4 --execute` and passed FFprobe verification (`h264`, `1080x1920`, `30 fps`, 6 seconds).
 
-### 6.7 Live technology news ingestion
+### 6.7 RSS news ingestion and dynamic categories
 
-- `php artisan news:import-live-tech --limit=10 --per-feed=3` fetches verified public feeds through the existing `RssImportService` and `NewsDuplicateService`.
-- Imported 10 genuine recent articles from TechCrunch (3), The Verge (3), Ars Technica (3), and GitHub Blog (1). Each is `ready`, linked to the new `Technology` category, and has a unique normalized URL/title.
-- The five configured live feeds are stored as **inactive** `NewsSource` records so the scheduled `news:import-rss` task cannot add articles in the background. The command is idempotent and stops at the target.
-- `php artisan rss:import` is registered as a compatibility alias for `news:import-live-tech`; it runs the same bounded synchronous import.
-- No AI provider, rendering, upload, or publishing call was made. The pre-existing `news` row and all automation/publishing tables were preserved.
+- `php artisan rss:import` is now the broad synchronous importer. It fetches every available article from every active `NewsSource` with a non-empty RSS URL, with no category filter and no default item cap. Optional `--source`, `--limit`, and `--per-feed` flags remain available for operator scoping.
+- Imports store items as `ready`, so `ai-pvg:triage --run --cluster` can score and cluster them immediately. Queued imports still trigger the gated post-import triage handshake.
+- RSS `<category>`, Atom `term`/`label`, Dublin Core `subject`, and MRSS `keywords` values are parsed. Resolution priority is specific article tag → generic article tag → content detection → specific/generic feed category → configured fallback.
+- Existing categories are reused case-insensitively by name or slug. Aliases in `config/news_categories.php` canonicalize common variants (`AI` → `Artificial Intelligence`, `cybersecurity` → `Security`). Unknown labels are auto-created as active `news_categories` rows, so a missing category never drops an article.
+- Content-only detection uses weighted keyword sets and requires `NEWS_CATEGORY_DETECTION_MIN_SCORE` (default `2.0`). Explicit RSS tags bypass the threshold.
+- `php artisan news:import-live-tech --limit=10 --per-feed=3` remains a separate bounded importer for the five verified public technology feeds. It ensures a target number of ready articles and stops at `--per-feed`; newly created source rows are stored **inactive** until an operator activates them.
+- `rss:import` is no longer an alias of `news:import-live-tech`; the two commands serve different ingestion paths.
+- No AI provider, rendering, upload, or publishing call is made by either importer. The pre-existing `news` row and all automation/publishing tables were preserved.
 
 ### 6.8 Manual G-02 triage command
 
@@ -180,27 +184,35 @@ Any missing gate, exhausted budget, open/half-open breaker, or missing budget ta
 - The 71 legacy draft imports in the development database were promoted once; `ai-pvg:triage --run --cluster` then scored all 71 (82 total scores), found 51 recent candidates, and correctly reported zero 3-5 source clusters because no pair reached 0.35 (closest pair 0.21). The command created no auto-greenlight run or script for unrelated coverage.
 - Feature coverage: `RssTriagePipelineTest` proves imported RSS items become ready, are scored, clustered, and reach planned auto-greenlight; disabled gates suppress both the queued handshake and the job; `StoryClusteringServiceTest` proves paraphrased multi-source coverage clusters while unrelated articles do not.
 
+### 6.10 Unrestricted cross-category triage
+
+- Scoring and clustering apply no category filter. `NewsScoringService` scores every ready article without a score, and `StoryClusteringService` evaluates the full recent candidate window.
+- `RssTriagePipelineTest` imports AI, Security, and Startups tagged coverage from three sources, then proves all three categories are scored and grouped into one cross-category story cluster before planned auto-greenlight.
+- `RssImportCommandTest` proves the broad command imports every item from every active source, is idempotent, and only truncates when explicit caps are supplied.
+- `NewsCategoryDiscoveryTest` proves existing-category reuse, alias mapping, unknown-category creation, content detection, feed-level fallback, specific-over-generic tag priority, and that no article is skipped for lacking a category.
+- Dev verification: `php artisan ai-pvg:triage --run --cluster --dry-run` evaluated 51 recent candidates across the existing categories and reported `0` pairs at the `0.35` threshold. It did not force a cluster for unrelated coverage and rolled back every write.
+
 ---
 
 ## 7. Development Database Preservation
 
-Verified after Phase H migrations and final test runs:
+Verified after the dynamic-category enhancement and final test runs:
 
 ```text
-news=11 (1 pre-existing + 10 live RSS articles)
-news_sources=6 (1 pre-existing + 5 configured live feeds, stored inactive)
+news=83 (seed row + local RSS imports)
+news_sources=6 (all active: Laravel News + 5 configured live feeds)
 news_categories=3 (Uncategorized, PHP, Technology)
-rss_import_logs=0
+rss_import_logs=21
 video_renders=0
 youtube_publishing_states=0
-automation_runs=0
+automation_runs=1
 automation_stage_runs=0
 ai_usage_ledger=0
-budget_periods=0
+budget_periods=1
 approval_gates=0
 provider_health_events=0
 feature_flags=0
-news_scores=0
+news_scores=83
 story_clusters=0
 story_cluster_news=0
 script_variants=0
@@ -220,8 +232,9 @@ Safety attestations:
 
 - No `migrate:fresh`, `db:wipe`, truncation, or seeder was run against the development database.
 - Only additive migrations and additive import rows were applied.
-- The single pre-existing `news` row (ID 1) was left untouched; exactly 10 live RSS articles were appended.
+- The seed `news` row (ID 1) was left untouched; the remaining rows are local RSS imports.
 - Tests use isolated `:memory:` SQLite.
+- The `ai-pvg:triage --run --cluster --dry-run` verification rolled back all triage writes; `story_clusters` and `story_cluster_news` remain empty.
 
 ---
 

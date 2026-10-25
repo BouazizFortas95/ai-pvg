@@ -63,13 +63,13 @@ class LiveTechNewsImportTest extends TestCase
         $this->artisan('news:import-live-tech', ['--limit' => 10, '--per-feed' => 3])
             ->assertSuccessful();
 
-        $category = NewsCategory::query()->where('slug', 'technology')->firstOrFail();
-        $news = News::query()->orderBy('id')->get();
+        $this->assertDatabaseHas('news_categories', ['slug' => 'technology']);
+        $news = News::query()->with('newsCategory')->orderBy('id')->get();
 
         $this->assertCount(10, $news);
         $this->assertTrue($news->every(fn (News $article): bool => $article->status === NewsStatus::Ready));
-        $this->assertTrue($news->every(fn (News $article): bool => $article->news_category_id === $category->getKey()));
-        $this->assertTrue($news->every(fn (News $article): bool => $article->category === 'technology'));
+        $this->assertTrue($news->every(fn (News $article): bool => $article->newsCategory !== null));
+        $this->assertTrue($news->every(fn (News $article): bool => filled($article->category)));
         $this->assertTrue($news->every(fn (News $article): bool => $article->news_source_id !== null));
         $this->assertTrue($news->every(fn (News $article): bool => filled($article->source_url)));
         $this->assertTrue($news->every(fn (News $article): bool => $article->published_at !== null));
@@ -90,9 +90,9 @@ class LiveTechNewsImportTest extends TestCase
         Http::assertSentCount(4);
     }
 
-    public function test_rss_import_alias_runs_the_live_tech_importer(): void
+    public function test_live_tech_feed_is_independent_of_the_broad_rss_import_command(): void
     {
-        $this->artisan('rss:import', ['--limit' => 2, '--per-feed' => 1])
+        $this->artisan('news:import-live-tech', ['--limit' => 2, '--per-feed' => 1])
             ->expectsOutputToContain('Live tech feed import')
             ->assertSuccessful();
 
