@@ -32,7 +32,7 @@ The delivered MVP is **implemented and tested**. External live boundaries (paid 
 | **Current branch** | `main` | `git branch --show-current` |
 | **Phase H foundation checkpoint** | `fdf950c feat(automation): complete G-05 visual asset harvester scene props remotion dynamic` | `git show -s --oneline fdf950c` |
 | **Phase H completion delta** | Read-only `PublishingStateResource` / `CoPilotSessionResource`, Studio publishing/Co-Pilot oversight, strict `PublishingGate` + dual-admin guard, comprehensive autopilot gate, diagnostics, tests, and documentation. | `git show --stat HEAD` after the completion commit |
-| **Working tree** | Clean after the live RSS import commit; dev SQLite remains ignored and uncommitted. | `git status --short` |
+| **Working tree** | Clean after the manual triage command commit; dev SQLite remains ignored and uncommitted. | `git status --short` |
 | **Database file** | `database/database.sqlite` is ignored by Git and was not staged. | `git check-ignore database/database.sqlite` |
 
 The earlier G-05/G-06 commit message did not name Phase H; the checkpoint hash is authoritative. No history rewrite was performed during the Phase H completion pass.
@@ -59,10 +59,11 @@ The earlier G-05/G-06 commit message did not name Phase H; the checkpoint hash i
 
 ## 4. Automated Test Suite Status
 
-- **Latest full run:** `263 passed` · `2208 assertions` · `0 failures` · `0 risky`.
+- **Latest full run:** `268 passed` · `2263 assertions` · `0 failures` · `0 risky`.
 - **Phase H suite:** `12 passed` · `53 assertions` · `0 failures`.
 - **Dry-run walkthrough suite:** `1 passed` · `864 assertions` · `0 failures` · `0 risky`.
 - **Live tech import suite:** `2 passed` · `26 assertions` · `0 failures`.
+- **Manual triage command suite:** `5 passed` · `58 assertions` · `0 failures`.
 - **Isolation:** `phpunit.xml` forces SQLite `:memory:`; tests never touch the dev database.
 - **Network discipline:** every Phase H test and the walkthrough call `Http::preventStrayRequests()`; no YouTube, provider, crawler, or paid call is made.
 - **Verification command:** `php artisan test`.
@@ -156,6 +157,16 @@ Any missing gate, exhausted budget, open/half-open breaker, or missing budget ta
 - The five configured live feeds are stored as **inactive** `NewsSource` records so the scheduled `news:import-rss` task cannot add articles in the background. The command is idempotent and stops at the target.
 - No AI provider, rendering, upload, or publishing call was made. The pre-existing `news` row and all automation/publishing tables were preserved.
 
+### 6.8 Manual G-02 triage command
+
+- `php artisan ai-pvg:triage` exposes the deterministic G-02 pipeline to operators with the required `--run`, `--cluster`, and `--dry-run` flags.
+- Scoring targets `status=ready` news without a `news_scores` row. Clustering then evaluates every returned story cluster through auto-greenlight and reports the action.
+- The command checks `TriageGate` before any work and fails cleanly when the config switch or `triage.news_scoring_enabled` feature flag is disabled.
+- `Http::preventStrayRequests()` blocks outbound HTTP for the command; scoring and clustering remain local TF-IDF only.
+- `--dry-run` wraps the entire run in a transaction, forces planned greenlight output, and rolls back scores, clusters, automation runs, approval gates, and scripts.
+- A dry run against the current development database scored 11 articles and made zero persistent changes (`news_scores=0`, `story_clusters=0`, `automation_runs=0`, `video_scripts=0`).
+- Usage is documented in `OPERATOR_RUNBOOK.md` §5.5 and the command quick reference.
+
 ---
 
 ## 7. Development Database Preservation
@@ -225,8 +236,8 @@ Post-MVP ideas remain optional and unauthorized, including autonomous QA/self-he
 ### 9.1 Full test suite
 
 ```text
-Tests:    263 passed (2208 assertions)
-Duration: 39.45s
+Tests:    268 passed (2263 assertions)
+Duration: 38.35s
 0 failures, 0 risky
 ```
 

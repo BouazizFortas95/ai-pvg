@@ -238,6 +238,57 @@ Configured feeds: TechCrunch, The Verge, Ars Technica, GitHub Blog, and Hacker N
 
 The command is idempotent: it counts existing ready articles from the selected sources and imports only the missing remainder. It does not call AI providers, render video, upload, or publish. Re-running with the target already met prints `Target already met; no new articles imported.`
 
+### 5.5 Manual G-02 triage
+
+`ai-pvg:triage` runs the deterministic G-02 pipeline from the terminal. It never calls AI providers or external services; scoring and clustering use local TF-IDF, and outbound HTTP is blocked for the duration of the command.
+
+```bash
+# Score ready articles that have no news_scores row (same as no flags)
+php artisan ai-pvg:triage --run
+
+# Score, cluster, and auto-greenlight with every write rolled back
+php artisan ai-pvg:triage --run --cluster --dry-run
+
+# Cluster and auto-greenlight using existing scores
+php artisan ai-pvg:triage --cluster
+
+# Default invocation (scoring only)
+php artisan ai-pvg:triage
+```
+
+Behavior:
+
+| Option | Effect |
+| :--- | :--- |
+| `--run` or no flags | Scores `status=ready` news with no `news_scores` row through `NewsScoringService`. |
+| `--cluster` | Groups recent news into 3-5 source story clusters through `StoryClusteringService`, then evaluates each returned cluster through `AutoGreenlightService`. |
+| `--dry-run` | Wraps the entire run in a database transaction, forces auto-greenlight into planned mode, then rolls everything back. No scores, clusters, runs, gates, or scripts are persisted. |
+
+Both controls matter:
+
+- `AUTOMATION_DRY_RUN=true` keeps auto-greenlight planned (no production `VideoScript`) but still persists local triage state such as scores and clusters.
+- `--dry-run` is stricter: it additionally rolls back scores, clusters, automation runs, approval gates, and scripts.
+
+The command prints tables for scored articles (band and composite score), story clusters (members, sources, confidence, top score), and auto-greenlight actions. It exits with a clear error when the triage gate is disabled.
+
+Prerequisites:
+
+```dotenv
+AUTOMATION_TRIAGE_ENABLED=true
+```
+
+```bash
+php artisan tinker --execute="App\Models\FeatureFlag::setFlag('triage.news_scoring_enabled', true);"
+```
+
+`--cluster` alone does not create scores. Run `--run` first, or use `--run --cluster`. With no pre-existing scores, auto-greenlight reports `none` because no member score is available.
+
+After a `--dry-run`, the development database should be unchanged:
+
+```bash
+php artisan tinker --execute="echo 'news_scores='.DB::table('news_scores')->count().'; story_clusters='.DB::table('story_clusters')->count().'; automation_runs='.DB::table('automation_runs')->count().'; video_scripts='.DB::table('video_scripts')->count().PHP_EOL;"
+```
+
 ---
 
 ## 6. Real local Remotion MP4 render
@@ -374,6 +425,11 @@ php artisan test
 
 # Live technology news (explicit, bounded, inactive sources)
 php artisan news:import-live-tech --limit=10 --per-feed=3
+
+# Manual G-02 triage (score, cluster, auto-greenlight; use --dry-run for rollback)
+php artisan ai-pvg:triage
+php artisan ai-pvg:triage --run
+php artisan ai-pvg:triage --run --cluster --dry-run
 
 # Real local render
 php artisan ai-pvg:verify-mp4
