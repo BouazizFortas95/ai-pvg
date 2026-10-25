@@ -1,12 +1,12 @@
 # AI-PVG — Hyper-Automation & Autonomous Intelligence Expansion Plan
 
 **File:** `AUTOMATION_EXPANSION_PROPOSAL.md`
-**Status:** G-00 approved/verified; G-01, G-02, and G-03 implemented and verified; G-04+ proposed.
+**Status:** **DONE — MVP Production-Ready Blueprint Complete.** G-00 through G-06 and Phase H are implemented and verified (2026-10-25). Original G-07/G-08 and the remaining H-01, H-02, H-04..H-06 ideas are deferred post-MVP items and are not part of the authorized delivery.
 **Author role:** Principal AI Systems Architect / Lead Laravel 12 Engineer / Media Automation Strategist
-**Date:** 2026-10-24
-**Baseline:** Tasks 01–10.6 · G-00 verified · G-01 verified · G-02 verified · G-03 verified 2026-10-24 — 241 tests / 1176 assertions / 0 failures / 0 risky.
+**Date:** 2026-10-25 (initial 2026-10-24)
+**Baseline:** Tasks 01–10.6 · G-00..G-06 verified · Phase H verified 2026-10-25 — 258 tests / 1265 assertions / 0 failures / 0 risky.
 
-> **Scope statement:** This document defines the modular Phase G and Phase H roadmap. G-01, G-02, and G-03 are implemented dark (`AUTOMATION_ENABLED=false`, `AUTOMATION_DRY_RUN=true`, `AUTOMATION_TRIAGE_ENABLED=false`, `automation.script_agents.enabled=false`); G-04+ remains proposed. Every automation described here is opt-in, config-gated, dry-run-capable, budget-bounded, and HITL-aware.
+> **Scope statement:** This document defines the modular Phase G and Phase H plan. The authorized MVP — G-00 through G-06 plus Phase H publishing/Co-Pilot/autopilot gates — is complete. All delivered automation is opt-in, config-gated, dry-run-capable, budget-bounded, and HITL-aware. No public upload is automated. Deferred post-MVP concepts are labeled explicitly in §7.
 
 ---
 
@@ -816,12 +816,14 @@ Jobs are individually dispatched; there is no end-to-end orchestrator, no run da
 
 - **Phase:** G
 - **Priority:** P2
+- **Status:** **Done — verified 2026-10-24**
 - **Depends on:** G-00, G-01, G-03
 - **Objective:** Word-level timings, kinetic captions, ducking, SFX, loudness normalization.
 - **In scope:** `caption_tracks`, `audio_assets`; `WordTimingService`, `AudioMixService`; Remotion captions component; FFmpeg filter-graph tests.
 - **Out of scope:** paid alignment APIs by default; heavy music library.
 - **Acceptance criteria:** verified vs estimated timings; ducking ≈18 dB; video-only fallback truthful.
 - **Test gate:** FFmpeg fixture tests (skip if binary absent); Remotion component snapshot tests.
+- **Evidence:** G-04 feature tests pass within the verified full suite (258 passed / 1265 assertions, 2026-10-25); dry-run performs no paid calls.
 - **Rollback:** captions/mix flags off; render remains text-only.
 - **Risks:** timing drift; mitigate with monotonic validation and duration clamps.
 
@@ -829,12 +831,14 @@ Jobs are individually dispatched; there is no end-to-end orchestrator, no run da
 
 - **Phase:** G
 - **Priority:** P2
+- **Status:** **Done — verified 2026-10-24**
 - **Depends on:** G-01, G-03
 - **Objective:** Entity extraction, licensed asset resolution, Remotion prop injection.
 - **In scope:** `visual_assets`, `scene_assets`; harvest/license/props services; allowlist config; Filament asset library; Studio asset preview.
 - **Out of scope:** scraping arbitrary sites; unlicensed logos; AI image generation.
 - **Acceptance criteria:** license-required; SSRF-safe; MIME/size validated; graceful fallback.
 - **Test gate:** allowlist/license/MIME tests; `Http::fake`.
+- **Evidence:** G-05 feature tests pass within the verified full suite (258 passed / 1265 assertions, 2026-10-25); no arbitrary scraping or live download in tests.
 - **Rollback:** disable asset harvesting; templates still render text.
 - **Risks:** copyright misuse; mitigate with license metadata + HITL exception gate.
 
@@ -842,12 +846,14 @@ Jobs are individually dispatched; there is no end-to-end orchestrator, no run da
 
 - **Phase:** G
 - **Priority:** P2
+- **Status:** **Done — verified 2026-10-24**
 - **Depends on:** G-00, G-01
 - **Objective:** One storyboard → 9:16 + 16:9 (+1:1) variants, thumbnails, A/B metadata.
 - **In scope:** `render_variants`, `thumbnail_variants`, `metadata_variants`; fan-out batch; composition resolver; thumbnail service.
 - **Out of scope:** automatic publishing; platform-specific posting.
 - **Acceptance criteria:** variants idempotent; preset mismatch reported; thumbnails optional.
 - **Test gate:** batch/fan-out tests with fake renderer; metadata length validation.
+- **Evidence:** G-06 feature tests pass within the verified full suite (258 passed / 1265 assertions, 2026-10-25); fan-out remains dry-run/planned by default.
 - **Rollback:** `render.formats` reduced to `9:16`.
 - **Risks:** render cost/latency; cap parallelism and require `bulk_render` gate.
 
@@ -855,6 +861,7 @@ Jobs are individually dispatched; there is no end-to-end orchestrator, no run da
 
 - **Phase:** G
 - **Priority:** P1
+- **Status:** **Deferred — post-MVP, not authorized in the delivered scope**
 - **Depends on:** G-00, G-01
 - **Objective:** preflight, truthful media verification, bounded retries, quarantine, golden render.
 - **In scope:** `RenderPreflightService`, `MediaVerificationService`, quarantine status/table, diagnostics extensions, golden integration test group.
@@ -868,6 +875,7 @@ Jobs are individually dispatched; there is no end-to-end orchestrator, no run da
 
 - **Phase:** G
 - **Priority:** P1
+- **Status:** **Deferred — post-MVP, not authorized in the delivered scope**
 - **Depends on:** G-01..G-07
 - **Objective:** end-to-end pipeline orchestration, approvals, pause/resume, ops visibility.
 - **In scope:** `PipelineRegistry`, orchestrator, approval inbox, ops widgets, stale-run reaper, scheduler tick.
@@ -881,23 +889,37 @@ Jobs are individually dispatched; there is no end-to-end orchestrator, no run da
 
 ## 7. Phase H Roadmap (Feedback & Scale)
 
-### H-01 — Opt-In Performance Feedback Loop (Pillar 7)
-- **Priority:** P2 · **Depends on:** G-08 · **Scope:** YouTube Analytics read-only adapter + CSV import, snapshots, sample-size guards, no auto prompt changes. **Out of scope:** TikTok/Facebook analytics, viewer-level data. **Acceptance:** disabled by default; zero calls when off; disconnect purges tokens. **Test gate:** mocked analytics, aggregation math.
+**Delivered status:** The authorized Phase H scope — publishing guard, Co-Pilot review, and autopilot gates — is **DONE — verified 2026-10-25**. The remaining H-items below are deferred post-MVP ideas and were **not implemented** in this delivery.
 
-### H-02 — Experimentation & A/B Metadata
-- **Priority:** P2 · **Depends on:** G-06, H-01 · **Scope:** deterministic variant assignment, metadata/thb variant results, selection rules. **Out of scope:** automatic winner deployment. **Acceptance:** reproducible assignments; minimum sample guard; no public changes without approval.
+### 7.1 Delivered — Phase H Publishing, Co-Pilot & Autopilot Gates
 
-### H-03 — Distribution Preparation (YouTube only)
-- **Priority:** P2 · **Depends on:** G-08 · **Scope:** improve existing `PublishingService` with run-linked upload state, resume/idempotency hardening, explicit dual approval for public. **Out of scope:** TikTok/Facebook/OAuth for other platforms; auto-posting. **Acceptance:** private default; uploaded ≠ public; no fabricated IDs; mocked tests only.
+- **Status:** **Done — verified 2026-10-25**
+- **Data:** additive `publishing_approval_sessions` and `co_pilot_review_sessions`; no destructive change to `youtube_publishing_states`.
+- **Public-publish guard:** `PublishingGate` requires the config switch plus the `publishing.enabled` feature flag and defaults closed. `YouTubePublishService` requires an approved approval session and/or an approved `PublicPublish` gate whose two approver IDs are present, distinct, and resolve to existing admin users. The service performs authorization only — it never uploads.
+- **Co-Pilot review:** admin-only, append-only audit over script/render/asset targets with approve/reject actions; never publishes or mutates the reviewed item.
+- **Autopilot preflight:** `AutopilotGateService` defaults to blocked and requires the G-01 master switch, G-02..G-06 gates, positive remaining budget, and a closed budget breaker; it returns explicit block reasons.
+- **UI/diagnostics:** read-only `PublishingStateResource` and `CoPilotSessionResource` (no create/edit/delete; fail closed when tables are missing), a read-only Studio publishing/Co-Pilot panel with no publish controls, and `ai-pvg:diagnostics` publishing/autopilot output.
+- **Evidence:** Phase H suite **12 passed / 53 assertions**; full suite **258 passed / 1265 assertions / 0 failures / 0 risky**; every test uses `Http::preventStrayRequests()`. `npm run build` passed (Vite 7.3.7, 58 modules, 1.90s). Scoped Pint passed; the full-repository Pint run still flags pre-existing unrelated files.
+- **Rollback:** disable `AUTOMATION_PUBLISHING_ENABLED` and the `publishing.enabled` flag; approval and review rows remain inert and readable.
 
-### H-04 — Prompt & Scoring Optimization
-- **Priority:** P3 · **Depends on:** H-01, H-02 · **Scope:** suggestions queue, offline evaluation harness with golden fixtures, human approval to adopt. **Out of scope:** self-modifying production prompts. **Acceptance:** no automatic deployment; versioned prompt registry.
+### 7.2 Deferred — Feedback & Scale (Not Authorized, Not Implemented)
 
-### H-05 — Scale, Ops & Cost Governance
-- **Priority:** P3 · **Depends on:** G-08 · **Scope:** optional Redis/Horizon guidance, queue autoscaling, SLOs, cost alerts, run retention. **Out of scope:** billing/subscriptions. **Acceptance:** documented worker topology; dashboards; budget alerts.
+#### H-01 — Opt-In Performance Feedback Loop (Pillar 7)
+- **Priority:** P2 · **Status:** Deferred post-MVP · **Depends on:** G-08 · **Scope:** YouTube Analytics read-only adapter + CSV import, snapshots, sample-size guards, no auto prompt changes. **Out of scope:** TikTok/Facebook analytics, viewer-level data. **Acceptance:** disabled by default; zero calls when off; disconnect purges tokens. **Test gate:** mocked analytics, aggregation math.
 
-### H-06 — Content Safety & Compliance
-- **Priority:** P2 · **Depends on:** G-05, H-03 · **Scope:** copyright/license checks, claim provenance, platform policy checklist, takedown workflow. **Out of scope:** legal advice/automated DMCA. **Acceptance:** every asset has license metadata; unsupported claims blocked; audit trail.
+#### H-02 — Experimentation & A/B Metadata
+- **Priority:** P2 · **Status:** Deferred post-MVP · **Depends on:** G-06, H-01 · **Scope:** deterministic variant assignment, metadata/thumbnail variant results, selection rules. **Out of scope:** automatic winner deployment. **Acceptance:** reproducible assignments; minimum sample guard; no public changes without approval.
+
+#### H-04 — Prompt & Scoring Optimization
+- **Priority:** P3 · **Status:** Deferred post-MVP · **Depends on:** H-01, H-02 · **Scope:** suggestions queue, offline evaluation harness with golden fixtures, human approval to adopt. **Out of scope:** self-modifying production prompts. **Acceptance:** no automatic deployment; versioned prompt registry.
+
+#### H-05 — Scale, Ops & Cost Governance
+- **Priority:** P3 · **Status:** Deferred post-MVP · **Depends on:** G-08 · **Scope:** optional Redis/Horizon guidance, queue autoscaling, SLOs, cost alerts, run retention. **Out of scope:** billing/subscriptions. **Acceptance:** documented worker topology; dashboards; budget alerts.
+
+#### H-06 — Content Safety & Compliance
+- **Priority:** P2 · **Status:** Deferred post-MVP · **Depends on:** G-05 · **Scope:** copyright/license checks, claim provenance, platform policy checklist, takedown workflow. **Out of scope:** legal advice/automated DMCA. **Acceptance:** every asset has license metadata; unsupported claims blocked; audit trail.
+
+> **Note:** the original H-03 “Distribution Preparation” item is realized by the delivered Phase H public-publish guard described in §7.1. Resume/idempotency hardening and live YouTube verification remain outside the delivered, tested boundary.
 
 ---
 
@@ -1086,8 +1108,9 @@ draft → generating → generated → approved
 
 **Gate G-A:** G-00 passes real FFprobe verification. **PASSED 2026-10-24.**
 **Gate G-B:** G-01..G-03 pass mocked + dry-run pilots. **PASSED 2026-10-24 (G-01, G-02, G-03).**
-**Gate G-C:** G-04..G-08 pass opt-in integration tests.
-**Gate H-A:** H-01..H-03 pass privacy/authorization review.
+**Gate G-C:** G-04..G-06 pass opt-in tests with additive schema and truthful fallbacks. **PASSED 2026-10-24.** (Original G-07/G-08 were not part of the delivered scope.)
+**Gate G-D:** Phase H dual-admin guard, Co-Pilot audit, autopilot preflight, read-only UI, diagnostics, and no-upload proofs pass. **PASSED 2026-10-25.**
+**Gate H-A:** Delivered Phase H privacy/authorization review — admin-only Co-Pilot, fail-closed missing tables, and no automated public publish. **PASSED 2026-10-25.** (Deferred H-01, H-02, H-04..H-06 were not implemented.)
 
 ---
 
@@ -1104,95 +1127,95 @@ draft → generating → generated → approved
 
 ---
 
-## 18. Appendix A — Proposed File Map (No Files Created by This Proposal)
+## 18. Appendix A — Implemented & Deferred File Map
 
-### New directories
+### Delivered directories
+
+The following paths exist in the repository as part of the delivered G-00..G-06 and Phase H work (representative, not exhaustive):
 
 ```
 app/Services/Automation/
   AutomationOrchestrator.php
+  PipelineRegistry.php
   BudgetGuard.php
   DryRunContext.php
   ApprovalService.php
   CircuitBreaker.php
-  PipelineRegistry.php
-  StageResult.php
+  FeatureFlagService.php
+  AutopilotGateService.php
+  FanOutBatchService.php
+  VisualAssetHarvester.php
   Scoring/NewsScoringService.php
   Clustering/StoryClusteringService.php
   Greenlight/AutoGreenlightService.php
+  Triage/TriageGate.php
 app/Services/AI/ScriptPipeline/
   HookSpecialistAgent.php
   NarrativeArchitectAgent.php
   FactCheckerAgent.php
-  ScriptPipelineOrchestrator.php
-  SceneDirectiveValidator.php
-app/Services/Media/
-  WordTimingService.php
+  ScriptPipelineService.php
+  DirectiveValidator.php
+  ScriptAgentsGate.php
+app/Services/AI/Captions/
+  CaptionTrackBuilder.php
   AudioMixService.php
-  MediaVerificationService.php
-  RenderPreflightService.php
-  RenderFanOutService.php
-  AssetHarvestService.php
-  AssetLicenseService.php
-  RemotionAssetPropsBuilder.php
-  ThumbnailService.php
-app/Jobs/Automation/
-  ScoreNewsJob.php
-  ClusterStoriesJob.php
-  AutoGreenlightJob.php
-  GenerateScriptPipelineJob.php
-  RenderVariantJob.php
-  ReapStaleRunsJob.php
-app/Console/Commands/
-  AutomationTickCommand.php
+  WordTimingService.php
+app/Services/Publishing/
+  PublishingGate.php
+  YouTubePublishService.php
+  CoPilotReviewService.php
 app/Filament/Resources/
   AutomationRuns/
   StoryClusters/
   ApprovalGates/
   VisualAssets/
   RenderVariants/
+  PublishingStates/
+  CoPilotSessions/
 config/automation.php
 ```
 
-### Additive migrations (proposed names only)
+Deferred paths named in earlier drafts — `RenderPreflightService`, `MediaVerificationService`, `RenderFanOutService`, `AssetLicenseService`, `RemotionAssetPropsBuilder`, `ThumbnailService`, and the `app/Jobs/Automation/*` workers — were **not** created unless already covered by the delivered G-00..G-06 services.
+
+### Additive migrations (delivered)
 
 ```
-2026_11_01_000100_create_automation_runs_table.php
-2026_11_01_000200_create_automation_stage_runs_table.php
-2026_11_01_000300_create_ai_usage_ledger_table.php
-2026_11_01_000400_create_budget_periods_table.php
-2026_11_01_000500_create_approval_gates_table.php
-2026_11_01_000600_create_provider_health_events_table.php
-2026_11_01_000700_create_feature_flags_table.php
-2026_11_01_000800_create_news_scores_table.php
-2026_11_01_000900_create_story_clusters_table.php
-2026_11_01_001000_create_story_cluster_news_table.php
-2026_11_01_001100_create_script_variants_table.php
-2026_11_01_001200_create_script_fact_checks_table.php
-2026_11_01_001300_create_caption_tracks_table.php
-2026_11_01_001400_create_audio_assets_table.php
-2026_11_01_001500_create_visual_assets_table.php
-2026_11_01_001600_create_scene_assets_table.php
-2026_11_01_001700_create_render_variants_table.php
-2026_11_01_001800_create_thumbnail_variants_table.php
-2026_11_01_001900_create_metadata_variants_table.php
+2026_10_24_120000_create_automation_runs_table.php
+2026_10_24_120100_create_automation_stage_runs_table.php
+2026_10_24_120200_create_ai_usage_ledger_table.php
+2026_10_24_120300_create_budget_periods_table.php
+2026_10_24_120400_create_approval_gates_table.php
+2026_10_24_120500_create_provider_health_events_table.php
+2026_10_24_120600_create_feature_flags_table.php
+2026_10_24_130000_create_news_scores_table.php
+2026_10_24_130100_create_story_clusters_table.php
+2026_10_24_130200_create_story_cluster_news_table.php
+2026_10_24_140000_create_script_variants_table.php
+2026_10_24_140100_create_script_fact_checks_table.php
+2026_10_24_150000_create_caption_tracks_table.php
+2026_10_24_150100_create_audio_assets_table.php
+2026_10_24_150200_add_word_timings_to_voice_generations.php
+2026_10_24_160000_create_visual_assets_table.php
+2026_10_24_160100_create_scene_assets_table.php
+2026_10_24_170000_create_render_variants_table.php
+2026_10_24_170100_create_thumbnail_variants_table.php
+2026_10_24_170200_create_metadata_variants_table.php
+2026_10_24_180000_create_publishing_approval_sessions_table.php
+2026_10_24_180100_create_co_pilot_review_sessions_table.php
 ```
 
 All migrations are **additive**; no column drops, no destructive operations, no reseeding.
 
-### Files expected to change (not changed by this proposal)
+### Files changed during delivery
 
-- `routes/console.php` — additional scheduled jobs.
-- `config/services.php` — provider toggles (placeholders only).
-- `.env.example` — placeholder variables.
-- `app/Models/VideoScript.php` — optional new relations (`variants`, `factChecks`), no breaking casts.
-- `app/Models/VideoRender.php` — optional `variants()` relation.
-- `app/Jobs/GenerateVideoScriptJob.php` — branch to pipeline behind flag; legacy path preserved.
-- `app/Services/VideoRenderingService.php` — preflight + verified-media checks; legacy fallback behind config.
-- `app/Services/VideoExportService.php` — require verified media for publishing gate.
-- `remotion/src/VideoScript.tsx` — optional `assets`, `captions`, `aspectRatio`, `directives` props (backward compatible).
-- `app/Livewire/StudioDashboard.php` — pipeline stage/status panels; eager loading to avoid N+1.
-- Filament resources — relation managers and read-only score/approval views.
+- `routes/console.php` — scheduled automation tick/reaper (dark by default).
+- `.env.example` — automation, captions, assets, formats, and publishing placeholders.
+- `app/Models/VideoScript.php` — additive `variants`/`factChecks` relations, no breaking casts.
+- `app/Livewire/StudioDashboard.php` — read-only triage/script/publishing panels.
+- `app/Console/Commands/AiPvgDiagnosticsCommand.php` — read-only G-01..G-06 and Phase H diagnostics.
+- Filament resources — read-only run/triage/script/asset/fan-out/publishing/Co-Pilot views.
+- `remotion/src/VideoScript.tsx` — backward-compatible `visualAssets`, `captionTrack`, and scene `directives` props.
+- `PROJECT_STATUS.md`, `PROJECT_ROADMAP.md`, `AUTOMATION_EXPANSION_PROPOSAL.md` — status and evidence updates.
 
 ---
 
@@ -1208,4 +1231,4 @@ All migrations are **additive**; no column drops, no destructive operations, no 
 
 ---
 
-**End of proposal.** G-00, G-01, G-02, and G-03 are approved, implemented, and verified. Implementation of G-04 and later phases requires explicit approval.
+**End of proposal.** The authorized MVP — G-00 through G-06 plus Phase H publishing/Co-Pilot/autopilot gates — is **DONE (MVP Production-Ready Blueprint Complete)** and verified 2026-10-25. Deferred post-MVP items (G-07, G-08, H-01, H-02, H-04, H-05, H-06) remain optional and require explicit approval before any implementation starts.

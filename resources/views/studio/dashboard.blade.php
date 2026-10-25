@@ -228,6 +228,69 @@ Script #{{ $script->id }} · {{ $script->language }} · {{ $script->target_durat
 </div>
 @endif
 
+<div style="padding:0 2rem;">
+<h2>Publishing &amp; Co-Pilot</h2>
+</div>
+<p class="triage-note">Read-only Phase H oversight. Publishing a video publicly requires two distinct administrators and is never automated. This panel exposes no publish, upload, approve, or reject controls.</p>
+@if(! $phaseH['tables_available'])
+<p class="triage-note">Phase H tables are not fully available. Run the additive publishing and Co-Pilot migrations to enable oversight.</p>
+@else
+<div class="studio-grid">
+<div class="studio-card"><h3>Publishing Gate</h3><div class="stat">{{ $phaseH['publishing_enabled'] ? 'ON' : 'OFF' }}</div><div class="label">Config + feature flag (<code>{{ $phaseH['publishing_flag'] }}</code>); OFF is the safe default.</div></div>
+<div class="studio-card"><h3>Approval Sessions</h3><div class="stat">{{ $phaseH['approval_total'] }}</div><div class="label">{{ $phaseH['approval_pending'] }} pending · {{ $phaseH['approval_approved'] }} approved</div></div>
+<div class="studio-card"><h3>Dual-Admin Approved</h3><div class="stat">{{ $phaseH['distinct_approved'] }}</div><div class="label">Approved sessions with two distinct approver IDs. Publishing remains manual.</div></div>
+<div class="studio-card"><h3>Co-Pilot Reviews</h3><div class="stat">{{ $phaseH['co_pilot_total'] }}</div><div class="label">{{ $phaseH['co_pilot_approved'] }} approved · {{ $phaseH['co_pilot_rejected'] }} rejected</div></div>
+</div>
+
+<div class="triage-grid">
+<div class="studio-card">
+<h3>Recent Publishing Approvals</h3>
+@if($phaseH['sessions']->isEmpty())
+<p style="color:rgba(255,255,255,0.5);">No publishing approval sessions yet.</p>
+@else
+<table class="directive-table">
+<thead><tr><th>#</th><th>Script</th><th>Status</th><th>First admin</th><th>Second admin</th><th>Created</th></tr></thead>
+<tbody>
+@foreach($phaseH['sessions'] as $session)
+<tr>
+<td>{{ $session->id }}</td>
+<td>{{ $session->videoScript?->title ?? '—' }}</td>
+<td><span class="script-badge {{ $session->status === 'approved' ? 'approved' : '' }}">{{ ucfirst($session->status) }}</span></td>
+<td>{{ $session->firstApprover?->name ?? '—' }}</td>
+<td>{{ $session->secondApprover?->name ?? '—' }}</td>
+<td>{{ $session->created_at?->diffForHumans() ?? '—' }}</td>
+</tr>
+@endforeach
+</tbody>
+</table>
+@endif
+</div>
+
+<div class="studio-card">
+<h3>Recent Co-Pilot Reviews</h3>
+@if($phaseH['reviews']->isEmpty())
+<p style="color:rgba(255,255,255,0.5);">No Co-Pilot review records yet.</p>
+@else
+<table class="directive-table">
+<thead><tr><th>#</th><th>Reviewer</th><th>Target</th><th>Action</th><th>Status</th><th>When</th></tr></thead>
+<tbody>
+@foreach($phaseH['reviews'] as $review)
+<tr>
+<td>{{ $review->id }}</td>
+<td>{{ $review->user?->name ?? '—' }}</td>
+<td>{{ ucfirst($review->target_type) }} #{{ $review->target_id }}</td>
+<td>{{ ucfirst($review->action) }}</td>
+<td>{{ ucfirst($review->status) }}</td>
+<td>{{ $review->created_at?->diffForHumans() ?? '—' }}</td>
+</tr>
+@endforeach
+</tbody>
+</table>
+@endif
+</div>
+</div>
+@endif
+
 <div class="studio-actions">
 <h2>Theme Customization</h2>
 <form wire:submit.prevent="saveTheme" class="theme-form">

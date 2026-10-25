@@ -6,8 +6,10 @@ use App\Enums\ScriptVariantType;
 use App\Enums\UserRole;
 use App\Enums\VideoScriptStatus;
 use App\Models\AutomationRun;
+use App\Models\CoPilotReviewSession;
 use App\Models\News;
 use App\Models\NewsScore;
+use App\Models\PublishingApprovalSession;
 use App\Models\ScriptVariant;
 use App\Models\StoryCluster;
 use App\Models\VideoScript;
@@ -18,6 +20,7 @@ use App\Services\AI\ScriptPipeline\ScriptSource;
 use App\Services\AI\ScriptPipeline\ScriptSourceFactory;
 use App\Services\Automation\Greenlight\AutoGreenlightService;
 use App\Services\Automation\Triage\TriageGate;
+use App\Services\Publishing\PublishingGate;
 use App\Services\ThemeEngine;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -240,6 +243,7 @@ class StudioDashboard extends Component
             'scriptAgentsEnabled' => $scriptAgentsEnabled,
             'scriptTablesAvailable' => $scriptTablesAvailable,
             'scriptPreviews' => $scriptPreviews,
+            'phaseH' => $this->buildPhaseHStatus(),
             'isAdmin' => $this->canReviewScriptAgents(),
         ]);
     }
@@ -249,6 +253,84 @@ class StudioDashboard extends Component
         $user = auth()->user();
 
         return $user !== null && $user->role === UserRole::Admin;
+    }
+
+    /**
+     * Read-only Phase H oversight. No publish, upload, approval, or reject
+     * action is exposed here; missing tables fail closed.
+     *
+     * @return array<string, mixed>
+     */
+    private function buildPhaseHStatus(): array
+    {
+        $approvalTable = Schema::hasTable('publishing_approval_sessions');
+        $coPilotTable = Schema::hasTable('co_pilot_review_sessions');
+        $videoScriptTable = Schema::hasTable('video_scripts');
+        $userTable = Schema::hasTable('users');
+        $tablesAvailable = $approvalTable && $coPilotTable && $videoScriptTable && $userTable;
+
+        $sessions = collect();
+        $reviews = collect();
+
+        if ($approvalTable && $videoScriptTable) {
+            $sessions = PublishingApprovalSession::query()
+                ->with(['videoScript', 'firstApprover', 'secondApprover'])
+                ->latest('id')
+                ->limit(8)
+                ->get();
+        }
+
+        if ($coPilotTable && $userTable) {
+            $reviews = CoPilotReviewSession::query()
+                ->with('user')
+                ->latest('id')
+                ->limit(8)
+                ->get();
+        }
+
+        $approvalTotal = $approvalTable ? PublishingApprovalSession::query()->count() : 0;
+        $approvalPending = $approvalTable
+            ? PublishingApprovalSession::query()->where('status', PublishingApprovalSession::STATUS_PENDING)->count()
+            : 0;
+        $approvalApproved = $approvalTable
+            ? PublishingApprovalSession::query()->where('status', PublishingApprovalSession::STATUS_APPROVED)->count()
+            : 0;
+        $distinctApproved = $approvalTable
+            ? PublishingApprovalSession::query()
+                ->where('status', PublishingApprovalSession::STATUS_APPROVED)
+                ->whereNotNull('first_approver_id')
+                ->whereNotNull('second_approver_id')
+                ->whereColumn('first_approver_id', '!=', 'second_approver_id')
+                ->count()
+            : 0;
+
+        $coPilotTotal = $coPilotTable ? CoPilotReviewSession::query()->count() : 0;
+        $coPilotApproved = $coPilotTable
+            ? CoPilotReviewSession::query()->where('action', CoPilotReviewSession::ACTION_APPROVE)->count()
+            : 0;
+        $coPilotRejected = $coPilotTable
+            ? CoPilotReviewSession::query()->where('action', CoPilotReviewSession::ACTION_REJECT)->count()
+            : 0;
+
+        $publishingGate = app(PublishingGate::class);
+
+        return [
+            'tables_available' => $tablesAvailable,
+            'approval_table' => $approvalTable,
+            'co_pilot_table' => $coPilotTable,
+            'publishing_enabled' => $publishingGate->enabled(),
+            'publishing_flag' => $publishingGate->flagKey(),
+            'approval_total' => $approvalTotal,
+            'approval_pending' => $approvalPending,
+            'approval_approved' => $approvalApproved,
+            'distinct_approved' => $distinctApproved,
+            'co_pilot_total' => $coPilotTotal,
+            'co_pilot_approved' => $coPilotApproved,
+            'co_pilot_rejected' => $coPilotRejected,
+            'sessions' => $sessions,
+            'reviews' => $reviews,
+            'dual_required' => true,
+        ];
     }
 
     private function scriptAgentTablesAvailable(): bool

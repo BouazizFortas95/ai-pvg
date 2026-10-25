@@ -49,7 +49,7 @@ return [
          * The requester may be automated (null) or a human user. A configured
          * system user may never be used as an approver for a human request.
          */
-        'require_dual_public_publish' => (bool) env('AUTOMATION_DUAL_PUBLIC_PUBLISH', false),
+        'require_dual_public_publish' => (bool) env('AUTOMATION_DUAL_PUBLIC_PUBLISH', true),
         'ttl_hours' => (int) env('AUTOMATION_APPROVAL_TTL_HOURS', 72),
         'system_user_id' => env('AUTOMATION_SYSTEM_USER_ID') !== null
             ? (int) env('AUTOMATION_SYSTEM_USER_ID')
@@ -177,6 +177,12 @@ return [
         'mime_allowlist' => ['image/jpeg', 'image/png', 'image/webp', 'video/mp4'],
     ],
 
+    'formats' => [
+        'enabled' => (bool) env('AUTOMATION_FORMATS_ENABLED', false),
+        'feature_flag' => env('AUTOMATION_FORMATS_FEATURE_FLAG', 'formats.enabled'),
+        'presets' => ['youtube_shorts_9_16', 'youtube_long_16_9', 'instagram_square_1_1'],
+    ],
+
     /*
     |--------------------------------------------------------------------------
     | Script agents (Pillar 2)
@@ -211,6 +217,9 @@ return [
     ],
 
     'publishing' => [
+        'enabled' => (bool) env('AUTOMATION_PUBLISHING_ENABLED', false),
+        'feature_flag' => env('AUTOMATION_PUBLISHING_FEATURE_FLAG', 'publishing.enabled'),
+        // Public publishing is never allowed without two distinct administrators.
         'allow_public_without_dual_approval' => false,
         'default_visibility' => 'private',
     ],

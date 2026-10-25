@@ -6,8 +6,10 @@ use App\Models\News;
 use App\Models\VideoRender;
 use App\Models\VideoScript;
 use App\Services\AI\ScriptPipeline\ScriptAgentsGate;
+use App\Services\Automation\AutopilotGateService;
 use App\Services\Automation\BudgetGuard;
 use App\Services\Automation\Triage\TriageGate;
+use App\Services\Publishing\PublishingGate;
 use App\Support\RemotionRuntime;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
@@ -246,10 +248,28 @@ class AiPvgDiagnosticsCommand extends Command
 
         $pubTables = ['publishing_approval_sessions', 'co_pilot_review_sessions'];
         $pubPresent = array_filter($pubTables, fn ($t) => Schema::hasTable($t));
-        $this->line('Publishing / Co-Pilot enabled: '.(config('automation.publishing.enabled', false) ? 'YES' : 'NO'));
+        $publishingGate = app(PublishingGate::class);
+        $autopilot = app(AutopilotGateService::class)->snapshot();
+        $approvalPending = Schema::hasTable('publishing_approval_sessions')
+            ? DB::table('publishing_approval_sessions')->where('status', 'pending')->count()
+            : 0;
+        $approvalApproved = Schema::hasTable('publishing_approval_sessions')
+            ? DB::table('publishing_approval_sessions')->where('status', 'approved')->count()
+            : 0;
+
+        $this->line('Publishing / Co-Pilot enabled: '.(config('automation.publishing.enabled', false) ? 'YES' : 'NO')
+            .' (flag='.$publishingGate->flagKey()
+            .'; gate='.($publishingGate->enabled() ? 'OPEN' : 'CLOSED')
+            .'; dual_public_publish=ENFORCED)');
         $this->line('Publishing / Co-Pilot tables: '.count($pubPresent).'/'.count($pubTables).' OK');
         $this->line('Publishing / Co-Pilot data: approval_sessions='.$this->tableCount('publishing_approval_sessions')
+            .'; pending='.$approvalPending
+            .'; approved='.$approvalApproved
             .'; co_pilot_sessions='.$this->tableCount('co_pilot_review_sessions'));
+        $this->line('Autopilot gate: '.($autopilot['allowed'] ? 'READY' : 'BLOCKED')
+            .'; blocked='.($autopilot['blocked'] === [] ? 'none' : implode(',', $autopilot['blocked']))
+            .'; budget_remaining_micros='.$autopilot['budget_remaining_micros']
+            .'; breaker='.$autopilot['breaker_state']);
     }
 
     private function tableCount(string $table): int
