@@ -12,6 +12,7 @@ class ThumbnailBuilder
             throw new RuntimeException('Duration must be positive for thumbnail extraction.');
         }
         $midMs = $targetMs ?? (int) ($durationSeconds * 1000 / 2);
+
         return [
             'video_path' => $videoPath,
             'offset_ms' => $midMs,

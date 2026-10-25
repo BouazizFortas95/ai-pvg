@@ -2,13 +2,12 @@
 
 namespace App\Filament\Resources\VideoScripts;
 
-use App\Filament\Resources\VideoScripts\Pages\ListVideoScripts;
 use App\Filament\Resources\VideoScripts\Pages\EditVideoScript;
+use App\Filament\Resources\VideoScripts\Pages\ListVideoScripts;
 use App\Filament\Resources\VideoScripts\Tables\VideoScriptsTable;
 use App\Models\VideoScript;
 use BackedEnum;
 use Filament\Resources\Resource;
-use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
 use UnitEnum;

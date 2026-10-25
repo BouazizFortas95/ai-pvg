@@ -1,10 +1,12 @@
 <?php
+
 namespace App\Filament\Resources\VideoScripts\Tables;
+
 use App\Enums\VideoScriptStatus;
-use App\Models\VideoScript;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
+
 class VideoScriptsTable
 {
     public static function configure(Table $table): Table

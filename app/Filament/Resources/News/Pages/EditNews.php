@@ -4,6 +4,7 @@ namespace App\Filament\Resources\News\Pages;
 
 use App\Filament\Resources\News\NewsResource;
 use App\Jobs\GenerateVideoScriptJob;
+use App\Models\VideoScript;
 use Filament\Actions\Action;
 use Filament\Actions\DeleteAction;
 use Filament\Resources\Pages\EditRecord;
@@ -20,7 +21,7 @@ class EditNews extends EditRecord
                 ->icon('heroicon-o-film')
                 ->visible(fn () => $this->record !== null)
                 ->action(function () {
-                    $script = \App\Models\VideoScript::create([
+                    $script = VideoScript::create([
                         'news_id' => $this->record->getKey(),
                         'title' => $this->record->title,
                         'language' => 'en',

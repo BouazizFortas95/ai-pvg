@@ -15,6 +15,7 @@ class RemotionPropInjector
         } else {
             $payload['visualAssets'] = null; // truthful fallback
         }
+
         return $payload;
     }
 }

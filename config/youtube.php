@@ -1,4 +1,5 @@
 <?php
+
 return [
     'provider' => env('YOUTUBE_PUBLISH_PROVIDER', 'youtube'),
     'client_id' => env('YOUTUBE_CLIENT_ID'),

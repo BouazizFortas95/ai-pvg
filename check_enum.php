@@ -1,20 +1,25 @@
 <?php
+
+use App\Enums\VideoExportStatus;
+use App\Enums\VideoRenderStatus;
+use App\Models\VideoExport;
+
 require __DIR__.'/vendor/autoload.php';
 try {
-    $e = new \App\Enums\VideoRenderStatus;
+    $e = new VideoRenderStatus;
     echo "Loaded OK\n";
-} catch (\Throwable $e) {
+} catch (Throwable $e) {
     echo get_class($e).': '.$e->getMessage()."\n";
 }
 try {
-    $e = new \App\Enums\VideoExportStatus;
+    $e = new VideoExportStatus;
     echo "Export OK\n";
-} catch (\Throwable $e) {
+} catch (Throwable $e) {
     echo get_class($e).': '.$e->getMessage()."\n";
 }
 try {
-    $m = new \App\Models\VideoExport;
+    $m = new VideoExport;
     echo "Model OK\n";
-} catch (\Throwable $e) {
+} catch (Throwable $e) {
     echo get_class($e).': '.$e->getMessage()."\n";
 }

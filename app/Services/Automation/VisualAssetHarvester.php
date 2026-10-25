@@ -3,7 +3,7 @@
 namespace App\Services\Automation;
 
 use App\Enums\ApprovalGateType;
-use App\Services\Automation\ApprovalService;
+use App\Models\VisualAsset;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use RuntimeException;
@@ -42,7 +42,7 @@ class VisualAssetHarvester
         }
 
         $checksum = hash('sha256', $body);
-        $existing = \App\Models\VisualAsset::where('checksum_sha256', $checksum)->first();
+        $existing = VisualAsset::where('checksum_sha256', $checksum)->first();
         if ($existing !== null) {
             return ['asset' => $existing, 'new' => false];
         }
@@ -52,7 +52,7 @@ class VisualAssetHarvester
         @mkdir(dirname($fullPath), 0755, true);
         file_put_contents($fullPath, $body);
 
-        $asset = \App\Models\VisualAsset::create([
+        $asset = VisualAsset::create([
             'type' => $mime === 'video/mp4' ? 'video' : 'image',
             'storage_path' => $path,
             'source_url' => $url,
@@ -76,8 +76,11 @@ class VisualAssetHarvester
     private function isPrivateOrLoopback(string $host): bool
     {
         $ip = filter_var($host, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE);
-        if ($ip !== false) return true;
+        if ($ip !== false) {
+            return true;
+        }
         $lower = strtolower($host);
+
         return str_contains($lower, 'localhost') || str_contains($lower, '127.') || str_contains($lower, '10.') || str_contains($lower, '192.168.') || str_contains($lower, '172.');
     }
 }

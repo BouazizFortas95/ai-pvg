@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class VisualAsset extends Model
 {
     protected $table = 'visual_assets';
+
     protected $fillable = [
         'type', 'storage_path', 'source_url', 'domain', 'license_type',
         'attribution_text', 'status', 'mime_type', 'byte_size',

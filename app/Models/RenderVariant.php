@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class RenderVariant extends Model
 {
     protected $table = 'render_variants';
+
     protected $fillable = [
         'video_render_id', 'preset_name', 'resolution_width', 'resolution_height',
         'storage_path', 'status', 'checksum_sha256',

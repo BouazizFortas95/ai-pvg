@@ -18,6 +18,7 @@ class PresetValidator
         if ($res['width'] < 1 || $res['height'] < 1) {
             throw new RuntimeException('Invalid resolution for preset: '.$preset);
         }
+
         return $enum;
     }
 }

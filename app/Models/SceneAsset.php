@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class SceneAsset extends Model
 {
     protected $table = 'scene_assets';
+
     protected $fillable = [
         'video_script_id', 'scene_index', 'visual_asset_id', 'role',
         'directive_query', 'attribution_text', 'status',

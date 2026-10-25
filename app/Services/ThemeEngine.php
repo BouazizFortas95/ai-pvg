@@ -1,6 +1,9 @@
 <?php
+
 namespace App\Services;
+
 use App\Models\UserThemePreference;
+
 class ThemeEngine
 {
     public static function getThemeForUser(int $userId): array
@@ -17,6 +20,7 @@ class ThemeEngine
                 '--mode' => $pref->mode,
             ];
         }
+
         return [
             '--primary' => '#00d4ff',
             '--secondary' => '#1e293b',
