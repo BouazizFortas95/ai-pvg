@@ -80,6 +80,32 @@ pre.breakdown { white-space:pre-wrap; word-break:break-word; max-height:220px; o
 </div>
 
 <div style="padding:0 2rem;">
+<h2>HyperFrames Status</h2>
+</div>
+<p class="triage-note">Read-only second render backend. HyperFrames is additive to Remotion, disabled by default, and exposes no render or publish controls here. It requires the config switch, the feature flag row, and a local Node/FFmpeg toolchain.</p>
+<div class="triage-grid">
+<div class="studio-card">
+<h3>Render Gate</h3>
+<span class="triage-badge {{ $hyperframes['enabled'] ? '' : 'muted' }}">{{ $hyperframes['enabled'] ? 'ENABLED' : 'disabled' }}</span>
+<div class="triage-meta">Config: <code>automation.render.hyperframes.enabled</code></div>
+<div class="triage-meta">Feature flag: <code>{{ $hyperframes['flag'] }}</code> = {{ $hyperframes['flag_enabled'] ? 'on' : 'off' }}</div>
+<div class="triage-meta">Toolchain: {{ $hyperframes['available'] ? 'READY' : 'INCOMPLETE' }}</div>
+@if(! $hyperframes['available'])
+<div class="triage-meta" style="color:#fbbf24;">{{ $hyperframes['reason'] }}</div>
+@endif
+</div>
+<div class="studio-card">
+<h3>Local Toolchain</h3>
+<div class="triage-meta">Node: {{ $hyperframes['node'] ?? 'MISSING' }}</div>
+<div class="triage-meta">HyperFrames CLI: {{ $hyperframes['cli'] ?? 'MISSING' }}</div>
+<div class="triage-meta">FFmpeg (full build): {{ $hyperframes['ffmpeg'] ?? 'MISSING' }}</div>
+<div class="triage-meta">FFprobe: {{ $hyperframes['ffprobe'] ?? 'MISSING' }}</div>
+<div class="triage-meta">Template dir: {{ $hyperframes['directory'] }}</div>
+<div class="triage-meta">Composition root: {{ $hyperframes['output'] }}</div>
+</div>
+</div>
+
+<div style="padding:0 2rem;">
 <h2>News Triage</h2>
 </div>
 <p class="triage-note">Read-only score and cluster inspection. The only action here creates at most one draft script; dry-run records a plan without touching production scripts. No publishing controls are exposed.</p>

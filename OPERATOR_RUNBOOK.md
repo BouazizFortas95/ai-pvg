@@ -12,10 +12,10 @@ Local quickstart for the G-01..G-06 automation MVP and Phase H publishing/Co-Pil
 | :--- | :--- | :--- |
 | PHP | 8.2+ · `php -v` | Extensions required by Laravel 12. |
 | Composer | `composer -V` | Installs PHP dependencies. |
-| Node.js | 20+ · `node -v` | Needed for Vite and Remotion. |
+| Node.js | 22+ · `node -v` | Needed for Vite, Remotion, and HyperFrames. |
 | SQLite | bundled with PHP | Default local database. |
-| Chrome | current | Used by Remotion; a bundled Chrome headless shell is preferred when present. |
-| FFmpeg / FFprobe | bundled with Remotion | Auto-detected; can be overridden with env vars. |
+| Chrome | current | Used by Remotion and HyperFrames; a bundled Chrome headless shell is preferred when present. |
+| FFmpeg / FFprobe | bundled with Remotion; Gyan 9+ for HyperFrames | Auto-detected; can be overridden with env vars. |
 
 All commands below run from the repository root unless stated otherwise.
 
@@ -73,6 +73,69 @@ cd ..
 ```
 
 `npm run build` compiles `remotion/src` into `remotion/dist`. Re-run it after any change under `remotion/src`, otherwise the renderer keeps using the old bundle.
+
+### 2.4 HyperFrames CLI (real MP4 verification — opt-in)
+
+HyperFrames is an **additive, feature-flagged** render backend. It renders from HTML+CSS+GSAP and requires Node 22+.
+
+```bash
+# One-time: install Gyan FFmpeg 9+ (includes setparams filter HyperFrames needs)
+winget install --id Gyan.FFmpeg -e --accept-source-agreements
+
+# Restart shell, then verify:
+ffmpeg -version   # should show 9.x
+ffprobe -version
+```
+
+HyperFrames project lives at `hyperframes/` (configurable via `AUTOMATION_HYPERFRAMES_DIRECTORY`). It contains only the pinned local toolchain (`hyperframes@0.8.214`, `gsap@3.12.5`) and the vendored GSAP asset. There is no checked-in `index.html`: every render builds an isolated composition under `storage/app/hyperframes/{run_id}/` from the approved script or payload. The CLI is invoked directly as `node hyperframes/node_modules/hyperframes/bin/hyperframes.mjs`, so rendering never downloads packages.
+
+The feature flag is OFF by default:
+```dotenv
+AUTOMATION_HYPERFRAMES_ENABLED=false
+AUTOMATION_HYPERFRAMES_FEATURE_FLAG=render.hyperframes
+```
+
+Enable for opt-in rendering:
+```dotenv
+AUTOMATION_HYPERFRAMES_ENABLED=true
+AUTOMATION_HYPERFRAMES_DIRECTORY=hyperframes
+AUTOMATION_HYPERFRAMES_OUTPUT_DIR=
+AUTOMATION_HYPERFRAMES_OUTPUT_VIDEO_DIR=
+AUTOMATION_HYPERFRAMES_CLI=
+AUTOMATION_HYPERFRAMES_NODE_BINARY=node
+# Leave empty to auto-detect a full FFmpeg build; set an explicit .exe path if needed.
+AUTOMATION_HYPERFRAMES_FFMPEG_PATH=
+AUTOMATION_HYPERFRAMES_TIMEOUT=600
+AUTOMATION_HYPERFRAMES_QUALITY=looks
+AUTOMATION_HYPERFRAMES_FPS=30
+```
+
+Agent-authored mode is separately disabled and requires a recorded Co-Pilot review:
+```dotenv
+AUTOMATION_HYPERFRAMES_AGENT_ENABLED=false
+AUTOMATION_HYPERFRAMES_AGENT_FEATURE_FLAG=render.hyperframes.agent
+AUTOMATION_HYPERFRAMES_AGENT_USE_AI=false
+AUTOMATION_HYPERFRAMES_AGENT_COPILOT_REVIEWED=false
+```
+
+Install/refresh the pinned toolchain once (network needed only for this setup step):
+```bash
+cd hyperframes && npm ci && cd ..
+```
+
+After editing `.env`:
+```bash
+php artisan config:clear
+```
+
+Switch the render driver in `.env` (or at runtime via `config()`):
+```dotenv
+AUTOMATION_RENDER_DRIVER=hyperframes
+```
+
+Default stays Remotion (`AUTOMATION_RENDER_DRIVER=remotion`). The service path fails closed unless **both** the config switch and a `render.hyperframes` feature-flag row are enabled; a missing `feature_flags` table also fails closed. The explicit `ai-pvg:verify-hyperframes --execute` verification path intentionally bypasses that gate for operator checks, but still runs lint, render, and FFprobe verification.
+
+### 2.3 Remotion CLI (real MP4 verification)
 
 ### 2.4 Create an administrator
 
@@ -409,6 +472,163 @@ Troubleshooting the renderer:
 
 ---
 
+## 6. Real local Remotion MP4 render
+
+Preflight first (checks Chrome, FFprobe, the compiled CLI, the payload, and the output directory):
+
+```bash
+php artisan ai-pvg:verify-mp4
+```
+
+Then perform the real render:
+
+```bash
+php artisan ai-pvg:verify-mp4 --execute
+```
+
+Default behavior:
+
+- Payload: `remotion/payload.json` (6 seconds, 2 scenes)
+- Output: `storage/app/video_out/verify_<timestamp>.mp4`
+- Log: the same path with `.log` appended
+- Expected verification: `h264`, `1080x1920`, `30 fps`, video stream present
+
+A successful run ends with:
+
+```text
+MP4 VERIFIED: <path>
+```
+
+Optional flags:
+
+```bash
+php artisan ai-pvg:verify-mp4 --execute --payload=remotion/payload_audio.json
+php artisan ai-pvg:verify-mp4 --execute --output=storage/app/video_out/operator-demo.mp4
+```
+
+Troubleshooting the renderer:
+
+- Re-run `cd remotion && npm run build` after editing `remotion/src`.
+- If Chrome is not detected, set `REMOTION_CHROME_EXECUTABLE` to a local Chrome executable.
+- If FFmpeg/FFprobe are not detected, install FFmpeg or set `FFMPEG_PATH` and `FFPROBE_PATH`.
+- A failed render keeps its `.log` next to the intended output path for inspection.
+
+> Real local rendering is filesystem-only. It does not call paid providers, upload to YouTube, or publish anything.
+
+---
+
+## 6b. Real local HyperFrames MP4 render (opt-in)
+
+HyperFrames renders from an HTML+CSS+GSAP composition via headless Chrome and FFmpeg. It is **feature-flagged and opt-in**, and additive to Remotion.
+
+Prerequisites:
+
+1. `cd hyperframes && npm ci` (pinned CLI `0.8.214` + `gsap@3.12.5`)
+2. A **full** FFmpeg build with the `setparams` filter. Remotion's bundled FFmpeg is stripped and will fail. On Windows, Gyan FFmpeg 9+ via WinGet is auto-detected; otherwise set `AUTOMATION_HYPERFRAMES_FFMPEG_PATH`.
+3. Node 22+ and a local Chrome/Chromium (the CLI uses headless Chrome).
+4. The toolchain is resolved locally, so no `npx` download occurs at render time.
+
+Preflight (no process spawned):
+
+```bash
+php artisan ai-pvg:verify-hyperframes
+```
+
+Real render from the synthetic payload:
+
+```bash
+php artisan ai-pvg:verify-hyperframes --execute
+```
+
+Real render from an approved script (preferred):
+
+```bash
+php artisan ai-pvg:verify-hyperframes --execute --script-id=123 --preset=9:16 --theme=cyber
+```
+
+Default behavior:
+
+- Composition: built per run under `storage/app/hyperframes/{run_id}/index.html`
+- Payload default: `remotion/payload.json`
+- Output: `storage/app/video_out/hyperframes_<timestamp>.mp4`
+- Verification: `h264`, preset dimensions, configured fps, duration, frame count, and audio presence (audio is only required when the manifest contains audio clips)
+
+Audio behavior in template mode: verified `narration` assets are copied at full volume and `music`/`background` assets at a conservative static `0.12` bed volume. Duplicate audio rows and missing files are skipped, and at most one narration bed plus one music bed is used. Dynamic G-04 sidechain ducking and timed SFX placement are **not yet applied** in HyperFrames mode.
+
+Optional flags:
+
+```bash
+# Custom payload JSON
+php artisan ai-pvg:verify-hyperframes --execute --payload=remotion/payload.json
+
+# Custom output path
+php artisan ai-pvg:verify-hyperframes --execute --output=storage/app/video_out/operator-hyperframes.mp4
+
+# Different preset (9:16, 16:9, 1:1)
+php artisan ai-pvg:verify-hyperframes --execute --preset=16:9
+
+# Different design-token theme
+php artisan ai-pvg:verify-hyperframes --execute --theme=breaking
+```
+
+Template mode is deterministic: the same script + options + run id produce byte-identical HTML/assets, and two renders of the same composition produced identical decoded frames and identical MP4 SHA-256 in local verification.
+
+Verification output:
+
+```text
+HYPERFRAMES MP4 VERIFIED: <path>
+```
+
+Troubleshooting:
+
+- `Full FFmpeg build not found` → install Gyan FFmpeg 9+ or set `AUTOMATION_HYPERFRAMES_FFMPEG_PATH`; Remotion's bundled FFmpeg is not sufficient.
+- `HyperFrames CLI not found` → run `npm ci` inside `hyperframes/`.
+- `HyperFrames rendering is disabled` → enable both `AUTOMATION_HYPERFRAMES_ENABLED=true` and the `render.hyperframes` flag row for service-path renders. The verification command's `--execute` path bypasses only this gate.
+- `lint` or `check` failure → inspect the generated composition under `storage/app/hyperframes/{run_id}/`; lint output is returned in the render's `error_message`.
+- A failed render never leaves a `completed` row: the service records `failed` with a typed `[gate]`, `[availability]`, `[lint]`, `[render]`, or `[verify]` stage prefix.
+
+Operator verification (this session, payload mode):
+
+```text
+File size: 2111095 bytes
+Codec: h264
+Resolution: 1080x1920
+Frame rate: 30 fps
+Duration: 12 seconds
+Frames: 360
+Audio stream: NO
+HYPERFRAMES MP4 VERIFIED: storage\app\video_out\hyperframes_20261028_195337.mp4
+```
+
+Approved-script mode (`--script-id=1`, 7 scenes, 45s):
+
+```text
+File size: 8147401 bytes
+Video stream: YES; Audio stream: YES
+Codec: h264; Resolution: 1080x1920; Frame rate: 30 fps
+Duration: 45 seconds; Frames: 1350
+Lint: 0 errors, 0 warnings
+HYPERFRAMES MP4 VERIFIED: storage\app\video_out\script1_hyperframes_final.mp4
+```
+
+Determinism check:
+
+```text
+sha256(determinism_a.mp4) = c60d92bf10c0d48823845ba4e69892d9bc304a7a1d15af2d77f94e21b632d596
+sha256(determinism_b.mp4) = c60d92bf10c0d48823845ba4e69892d9bc304a7a1d15af2d77f94e21b632d596
+Decoded frame hashes (FFmpeg framemd5): identical
+```
+
+### 6b.1 Agent-authored composition mode (dry-run only)
+
+`AUTOMATION_HYPERFRAMES_AGENT_*` is off by default. When enabled and not dry-run, the LLM call goes through `BudgetGuard::authorize`/`settle` (which writes `ai_usage_ledger`) and the circuit breaker. Generated HTML is rejected if it contains `http://`, `https://`, `Date.now`, `Math.random`, `setTimeout`, `setInterval`, or `requestAnimationFrame`, then must pass `hyperframes lint` and `hyperframes check --json`. A real render additionally requires `AUTOMATION_HYPERFRAMES_AGENT_COPILOT_REVIEWED=true`.
+
+In dry-run, the agent does **zero** provider calls, writes **zero** usage/budget rows, and falls back to the deterministic template with `manifest.mode = template_dry_run`. Agent mode has not been live-verified against a paid provider.
+
+> HyperFrames rendering is filesystem-only. It does not call paid providers, upload to YouTube, or publish anything.
+
+---
+
 ## 7. What dry-run guarantees
 
 When `AUTOMATION_DRY_RUN=true`:
@@ -515,4 +735,6 @@ php artisan ai-pvg:triage --run --cluster --dry-run
 # Real local render
 php artisan ai-pvg:verify-mp4
 php artisan ai-pvg:verify-mp4 --execute
+php artisan ai-pvg:verify-hyperframes
+php artisan ai-pvg:verify-hyperframes --execute
 ```

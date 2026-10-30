@@ -1,26 +1,58 @@
 {
-  "title": "G-00 Verified Render",
+  "title": "AI-PVG Cinematic Short",
   "language": "en",
-  "target_duration": 6,
+  "target_duration": 12,
   "template": "cyber",
+  "audioUrl": "/public/g00_audio.wav",
   "scenes": [
     {
       "order": 1,
       "type": "intro",
-      "duration": 3,
-      "headline": "Remotion Bundle Fixed",
-      "description": "Real MP4 verification",
-      "narration": "The Remotion render pipeline is producing a real video.",
-      "visual_keywords": ["remotion", "video"]
+      "duration": 4,
+      "headline": "Remotion Pipeline Fixed",
+      "description": "Real MP4 rendering with cinematic transitions and sequential scene sequencing.",
+      "narration": "The Remotion render pipeline now produces professional vertical short-form video.",
+      "visual_keywords": ["remotion", "video", "rendering"],
+      "badge": "Intro",
+      "source": "AI-PVG",
+      "sourceUrl": "https://ai-pvg.example.com",
+      "directives": {
+        "highlight_text": "Sequential scene presentation",
+        "emotion_tone": "Hook",
+        "sfx_cue": "whoosh_in"
+      }
     },
     {
       "order": 2,
+      "type": "segment",
+      "duration": 5,
+      "headline": "Active Focus View",
+      "description": "Each scene appears prominently with high-impact typography and smooth entrance transitions.",
+      "narration": "Active focus view highlights only the current scene.",
+      "visual_keywords": ["focus", "typography", "transition"],
+      "badge": "Segment",
+      "source": "Internal",
+      "directives": {
+        "highlight_text": "Fade-in + slide-up + scale",
+        "emotion_tone": "Reveal",
+        "sfx_cue": "ding"
+      }
+    },
+    {
+      "order": 3,
       "type": "conclusion",
       "duration": 3,
       "headline": "FFprobe Verified",
-      "description": "Codec and streams confirmed",
-      "narration": "FFprobe confirms the output file.",
-      "visual_keywords": ["ffprobe", "verified"]
+      "description": "Codec, resolution, frame rate, and duration all verified against h264 1080x1920 30fps.",
+      "narration": "FFprobe confirms the output MP4 meets broadcast specifications.",
+      "visual_keywords": ["ffprobe", "verified", "h264"],
+      "badge": "Outro",
+      "source": "AI-PVG QA",
+      "directives": {
+        "highlight_text": "Broadcast-ready output",
+        "emotion_tone": "Confirm",
+        "sfx_cue": "chime"
+      }
     }
   ]
 }

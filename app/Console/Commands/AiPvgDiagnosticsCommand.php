@@ -10,6 +10,7 @@ use App\Services\Automation\AutopilotGateService;
 use App\Services\Automation\BudgetGuard;
 use App\Services\Automation\Triage\TriageGate;
 use App\Services\Publishing\PublishingGate;
+use App\Support\HyperFramesRuntime;
 use App\Support\RemotionRuntime;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
@@ -31,6 +32,15 @@ class AiPvgDiagnosticsCommand extends Command
         $this->line('Chrome headless: '.(RemotionRuntime::chromePath() ? 'YES' : 'NO'));
         $this->line('FFprobe: '.(RemotionRuntime::ffprobePath() ? 'YES' : 'NO'));
         $this->line('FFmpeg: '.(RemotionRuntime::ffmpegPath() ? 'YES' : 'NO'));
+        $hf = HyperFramesRuntime::status();
+        $this->line('HyperFrames dir: '.(is_dir($hf['directory']) ? 'YES' : 'NO'));
+        $this->line('HyperFrames Node: '.($hf['node'] ?? 'MISSING'));
+        $this->line('HyperFrames CLI: '.($hf['cli'] ?? 'MISSING'));
+        $this->line('HyperFrames FFmpeg (full): '.($hf['ffmpeg'] ?? 'MISSING'));
+        $this->line('HyperFrames FFmpeg setparams: '.(HyperFramesRuntime::ffmpegSupportsSetparams() ? 'YES' : 'NO'));
+        $this->line('HyperFrames gate: '.($hf['enabled'] ? 'ENABLED' : 'disabled')
+            .' (flag='.$hf['flag'].'='.($hf['flag_enabled'] ? 'on' : 'off').')');
+        $this->line('HyperFrames toolchain: '.($hf['available'] ? 'READY' : 'INCOMPLETE — '.$hf['reason']));
         $dir = storage_path('app/video_out');
         $this->line('Output dir writable: '.(is_writable($dir) ? 'YES' : 'NO'));
         $this->line('AI provider configured: '.(config('ai.provider') ? 'YES' : 'NO'));

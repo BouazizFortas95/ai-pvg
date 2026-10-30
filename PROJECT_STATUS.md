@@ -53,14 +53,16 @@ The earlier G-05/G-06 commit message did not name Phase H; the checkpoint hash i
 | **Format fan-out (G-06)** | Disabled by default | **TESTED** | Preset validators, planned render/thumbnail/metadata variants; dry-run only. |
 | **Publishing / Co-Pilot (Phase H)** | Disabled by default | **TESTED** | Dual-admin guard, admin-only Co-Pilot audit, global autopilot preflight. |
 | **Remotion / FFmpeg / FFprobe** | Bundled runtime available | **INTEGRATION VERIFIED** | Real MP4s verified during G-00; no paid or public action in Phase H. |
+| **HyperFrames / FFmpeg 9+** | Gyan FFmpeg 9.0.2 full build | **INTEGRATION VERIFIED** | Opt-in additive backend; real MP4s verified via `ai-pvg:verify-hyperframes --execute`. |
 | **YouTube live upload** | Configured: NO | **NOT LIVE-VERIFIED** | Resumable upload code and mocked HTTP tests only. |
 
 ---
 
 ## 4. Automated Test Suite Status
 
-- **Latest full run:** `281 passed` · `2371 assertions` · `0 failures` · `0 risky`.
+- **Latest full run:** `302 passed` · `2491 assertions` · `0 failures` · `0 risky`.
 - **Phase H suite:** `12 passed` · `53 assertions` · `0 failures`.
+- **HyperFrames suite:** `17 passed` · `91 assertions` · `0 failures`.
 - **Dry-run walkthrough suite:** `1 passed` · `864 assertions` · `0 failures` · `0 risky`.
 - **Live tech import suite:** `3 passed` · `32 assertions` · `0 failures`.
 - **Dynamic category/import suite:** `5 passed` · `47 assertions` · `0 failures`.
@@ -70,7 +72,7 @@ The earlier G-05/G-06 commit message did not name Phase H; the checkpoint hash i
 - **Network discipline:** every Phase H test and the walkthrough call `Http::preventStrayRequests()`; no YouTube, provider, crawler, or paid call is made.
 - **Verification command:** `php artisan test`.
 
-**Build verification:** `npm run build` → Vite 7.3.7, 58 modules transformed, `public/build/assets/app-BI1te6TZ.css` 52.00 kB, `public/build/assets/app-DMsN-rLE.js` 51.52 kB, built in **1.90s**.
+**Build verification:** `npm run build` → Vite 7.3.7, 58 modules transformed, `public/build/assets/app-18p0kKjW.css` 53.46 kB, `public/build/assets/app-DMsN-rLE.js` 51.52 kB, built in **3.35s**.
 
 **Style verification:** full-repository `vendor/bin/pint --test` → **passed**.
 
@@ -84,6 +86,7 @@ The earlier G-05/G-06 commit message did not name Phase H; the checkpoint hash i
 | 2 | AI script generation (legacy single prompt) | Yes | Mocked | Not live-verified | **PARTIAL** external boundary |
 | 3 | TTS and voice generation | Yes | Mocked | Not live-verified | **PARTIAL** external boundary |
 | 4 | Remotion rendering + FFprobe verification | Yes | Yes | **Yes (real MP4s)** | **INTEGRATION VERIFIED** |
+| 4b | HyperFrames rendering + FFprobe verification | Yes | Yes | **Yes (real MP4s)** | **INTEGRATION VERIFIED** |
 | 5 | Export presets and media validation | Yes | Yes | Partial | **PARTIAL** |
 | 6 | G-00 Remotion/MP4 baseline | Yes | Yes | **Yes** | **DONE** |
 | 7 | G-01 automation control plane | Yes | Yes | Inert by default | **DONE** |
@@ -184,7 +187,35 @@ Any missing gate, exhausted budget, open/half-open breaker, or missing budget ta
 - The 71 legacy draft imports in the development database were promoted once; `ai-pvg:triage --run --cluster` then scored all 71 (82 total scores), found 51 recent candidates, and correctly reported zero 3-5 source clusters because no pair reached 0.35 (closest pair 0.21). The command created no auto-greenlight run or script for unrelated coverage.
 - Feature coverage: `RssTriagePipelineTest` proves imported RSS items become ready, are scored, clustered, and reach planned auto-greenlight; disabled gates suppress both the queued handshake and the job; `StoryClusteringServiceTest` proves paraphrased multi-source coverage clusters while unrelated articles do not.
 
-### 6.10 Unrestricted cross-category triage
+### 6.11 HyperFrames render backend (opt-in, additive)
+
+- **Scope:** A second, feature-flagged render backend using HyperFrames (HeyGen's "write HTML, render video" framework). Compositions are plain HTML+CSS+GSAP; the root element carries `data-composition-id`, `data-start`, `data-duration`, `data-width`, `data-height`. Timed elements are `.clip` divs with `data-start`, `data-duration`, `data-track-index`. Audio uses `<audio>` with timing attributes. Animation is seekable: a paused GSAP timeline is registered as `window.__timelines[<id>] = tl`.
+- **Implementation:**
+  - `VideoRenderer` interface with `RemotionRenderer` (zero behavior change) and `HyperFramesRenderer`.
+  - Driver chosen by `AUTOMATION_RENDER_DRIVER`; default stays `remotion`.
+  - `HyperFramesCompositionBuilder` (template mode, Blade + design tokens) converts approved scripts + scene props + caption tracks + verified visual assets + format presets into `storage/app/hyperframes/{run_id}/index.html`. Each run is isolated, writes a manifest, copies only verified assets with attribution, and vendors GSAP locally.
+  - `HyperFramesRenderService` runs `lint` then `render` through Symfony Process with argument arrays, timeouts, captured output, and typed exceptions (`[gate]`, `[availability]`, `[lint]`, `[render]`, `[verify]`). It reuses the existing FFprobe verification and only marks a render completed after media checks pass.
+  - `HyperFramesAgentAuthor` (Mode B) is separately gated, budget-guarded, ledger-settled, and dry-run safe; it runs `lint` + `check --json` before accepting an LLM-authored composition.
+  - `ai-pvg:verify-hyperframes` supports `--script-id`, `--payload`, `--preset`, `--theme`, `--output`, and `--execute`.
+- **Config & Flags:**
+  - `AUTOMATION_HYPERFRAMES_ENABLED=false` (OFF by default)
+  - `AUTOMATION_HYPERFRAMES_FEATURE_FLAG=render.hyperframes`
+  - `AUTOMATION_HYPERFRAMES_DIRECTORY=hyperframes` (pinned toolchain/template directory)
+  - `AUTOMATION_HYPERFRAMES_OUTPUT_DIR=` / `AUTOMATION_HYPERFRAMES_OUTPUT_VIDEO_DIR=`
+  - `AUTOMATION_HYPERFRAMES_CLI=`
+  - `AUTOMATION_HYPERFRAMES_NODE_BINARY=node`
+  - `AUTOMATION_HYPERFRAMES_FFMPEG_PATH=` (full build auto-detected)
+  - `AUTOMATION_HYPERFRAMES_TIMEOUT=600`
+  - `AUTOMATION_HYPERFRAMES_QUALITY=looks`
+  - `AUTOMATION_HYPERFRAMES_FPS=30`
+  - `AUTOMATION_HYPERFRAMES_AGENT_*` (all OFF; separate `render.hyperframes.agent` flag)
+- **Prerequisites:** Node 22+, a full FFmpeg 9+ build with `setparams` (Gyan WinGet build auto-detected on this machine), Chrome headless, and `npm ci` in `hyperframes/` for the pinned CLI `0.8.214` + `gsap@3.12.5`.
+- **Safety:** The service path fails closed if the config switch, `render.hyperframes` flag row, `feature_flags` table, CLI, Node, full FFmpeg, or FFprobe is missing. No process is spawned before the gate/availability checks.
+- **Tests:** `tests/Feature/HyperFramesRendererTest.php` (17 tests, 91 assertions) — driver binding, config-off no-op, missing flag, missing CLI, lint failure blocks render, successful lint/render/FFprobe model update, byte-identical template output, presets, truthful-only captions, offline HTML/vendored GSAP, verified public-disk asset copying, duplicate-audio dedupe, long-headline scaling, dry-run zero spend/zero rows, forbidden-primitive rejection, mocked budget/breaker/ledger contract, and read-only Studio status.
+- **Integration:** `ai-pvg:diagnostics` and the Studio dashboard report HyperFrames gate/toolchain status read-only. `OPERATOR_RUNBOOK.md` §2.4, §6b, and §6b.1 document setup, verification, and agent mode.
+- **Verification:** `php artisan ai-pvg:verify-hyperframes --execute` → `HYPERFRAMES MP4 VERIFIED` from the synthetic payload (`h264`, `1080x1920`, `30 fps`, 12s, 360 frames) and from approved script ID 1 (`h264`, `1080x1920`, `30 fps`, 45s, 1350 frames, audio stream present). Both passed lint with 0 errors / 0 warnings. Two runs of the same payload produced identical decoded frame hashes and identical MP4 SHA-256 (`c60d92bf…d596`).
+- **Readiness:** Template mode **INTEGRATION VERIFIED** locally, including an approved script. Agent mode **TESTED with mocked provider only**; no live/paid provider call has been made, and no real agent-authored render has been produced. Dynamic G-04 sidechain ducking is not applied in HyperFrames mode; music is held at a conservative static bed volume.
+
 
 - Scoring and clustering apply no category filter. `NewsScoringService` scores every ready article without a score, and `StoryClusteringService` evaluates the full recent candidate window.
 - `RssTriagePipelineTest` imports AI, Security, and Startups tagged coverage from three sources, then proves all three categories are scored and grouped into one cross-category story cluster before planned auto-greenlight.
@@ -196,29 +227,29 @@ Any missing gate, exhausted budget, open/half-open breaker, or missing budget ta
 
 ## 7. Development Database Preservation
 
-Verified after the dynamic-category enhancement and final test runs:
+Verified after the HyperFrames integration and final test runs:
 
 ```text
-news=83 (seed row + local RSS imports)
-news_sources=6 (all active: Laravel News + 5 configured live feeds)
-news_categories=3 (Uncategorized, PHP, Technology)
-rss_import_logs=21
-video_renders=0
+news=217 (seed row + local RSS imports)
+news_sources=11
+news_categories=36
+rss_import_logs=49
+video_renders=24
 youtube_publishing_states=0
-automation_runs=1
-automation_stage_runs=0
+automation_runs=3
+automation_stage_runs=3
 ai_usage_ledger=0
 budget_periods=1
 approval_gates=0
 provider_health_events=0
-feature_flags=0
-news_scores=83
-story_clusters=0
-story_cluster_news=0
-script_variants=0
-script_fact_checks=0
+feature_flags=2
+news_scores=217
+story_clusters=3
+story_cluster_news=13
+script_variants=3
+script_fact_checks=7
 caption_tracks=0
-audio_assets=0
+audio_assets=24
 visual_assets=0
 scene_assets=0
 render_variants=0
@@ -231,10 +262,10 @@ co_pilot_review_sessions=0
 Safety attestations:
 
 - No `migrate:fresh`, `db:wipe`, truncation, or seeder was run against the development database.
-- Only additive migrations and additive import rows were applied.
+- No migration, seeder, or write operation was run for this HyperFrames session; verification commands only read DB rows and wrote local composition/MP4 files.
 - The seed `news` row (ID 1) was left untouched; the remaining rows are local RSS imports.
 - Tests use isolated `:memory:` SQLite.
-- The `ai-pvg:triage --run --cluster --dry-run` verification rolled back all triage writes; `story_clusters` and `story_cluster_news` remain empty.
+- `ai_usage_ledger` remains `0`: dry-run agent tests wrote zero usage rows, and no paid provider was called.
 
 ---
 
@@ -277,7 +308,7 @@ Duration: 1.76s
 Http::assertNothingSent(); paid spend = 0
 ```
 
-### 9.3 Real local MP4 verification
+### 9.3 Real local MP4 verification (Remotion)
 
 ```text
 Chrome: ...\Google\Chrome\Application\chrome.exe
@@ -291,6 +322,44 @@ Video stream: YES; Audio stream: NO
 Codec: h264; Resolution: 1080x1920; Frame rate: 30 fps
 Duration: 6 seconds; Frames: 180
 MP4 VERIFIED: storage\app\video_out\verify_20261025_174444.mp4
+```
+
+### 9.3b Real local MP4 verification (HyperFrames)
+
+```text
+Template dir: C:\xampp\htdocs\laravel13\ai-pvg\hyperframes
+Composition root: C:\xampp\htdocs\laravel13\ai-pvg\storage\app/hyperframes
+Node: C:\Program Files\nodejs\node.exe
+HyperFrames CLI: C:\xampp\htdocs\laravel13\ai-pvg\hyperframes\node_modules/hyperframes/bin/hyperframes.mjs
+FFmpeg (full build): C:/Users/FIddler/AppData/Local/Microsoft/WinGet/Packages/Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe/ffmpeg-9.0.2-full_build/bin/ffmpeg.exe
+FFprobe: C:\xampp\htdocs\laravel13\ai-pvg\remotion\node_modules\@remotion\compositor-win32-x64-msvc\ffprobe.exe
+Gate: disabled (flag render.hyperframes=off)
+
+File size: 2111095 bytes
+Video stream: YES; Audio stream: NO
+Codec: h264; Resolution: 1080x1920; Frame rate: 30 fps
+Duration: 12 seconds; Frames: 360
+HYPERFRAMES MP4 VERIFIED: storage\app\video_out\hyperframes_20261028_195337.mp4
+```
+
+Approved-script mode (`--script-id=1`, 7 scenes, 45s):
+
+```text
+File size: 8147401 bytes
+Video stream: YES; Audio stream: YES
+Codec: h264; Resolution: 1080x1920; Frame rate: 30 fps
+Duration: 45 seconds; Frames: 1350
+Manifest audio: assets/audio/narration-1.wav, assets/audio/background-10.wav (duplicate rows deduped)
+Lint: 0 errors, 0 warnings
+HYPERFRAMES MP4 VERIFIED: storage\app\video_out\script1_hyperframes_final.mp4
+```
+
+### 9.3c HyperFrames determinism check
+
+```text
+sha256(determinism_a.mp4) = c60d92bf10c0d48823845ba4e69892d9bc304a7a1d15af2d77f94e21b632d596
+sha256(determinism_b.mp4) = c60d92bf10c0d48823845ba4e69892d9bc304a7a1d15af2d77f94e21b632d596
+FFmpeg framemd5 (decoded frames, audio disabled): identical
 ```
 
 ### 9.4 Phase H diagnostics
@@ -307,6 +376,7 @@ Autopilot gate: BLOCKED; blocked=g01_automation,g02_triage,g03_script_agents,g04
 Created:
 
 - `tests/Feature/EndToEndAutomationDryRunWalkthroughTest.php`
+- `tests/Feature/HyperFramesRendererTest.php`
 - `OPERATOR_RUNBOOK.md`
 
 Modified:
@@ -326,20 +396,43 @@ Created:
 - `app/Filament/Resources/CoPilotSessions/*`
 - `app/Services/Publishing/PublishingGate.php`
 
+### 9.6b HyperFrames files
+
+Created:
+
+- `app/Contracts/VideoRenderer.php`
+- `app/Services/Rendering/RemotionRenderer.php`
+- `app/Services/Rendering/ProcessRunner.php`
+- `app/Services/Rendering/ProcessResult.php`
+- `app/Services/Rendering/HyperFramesRenderer.php`
+- `app/Services/Rendering/HyperFramesCompositionBuilder.php`
+- `app/Services/Rendering/HyperFramesRenderService.php`
+- `app/Services/Rendering/HyperFramesAgentAuthor.php`
+- `app/Support/HyperFramesRuntime.php`
+- `app/Exceptions/Rendering/HyperFramesException.php`
+- `app/Exceptions/Rendering/HyperFramesDisabledException.php`
+- `app/Exceptions/Rendering/HyperFramesUnavailableException.php`
+- `app/Exceptions/Rendering/HyperFramesLintException.php`
+- `app/Console/Commands/VerifyHyperframesCommand.php`
+- `resources/views/hyperframes/root.blade.php`
+- `resources/views/hyperframes/scene.blade.php`
+- `resources/views/hyperframes/captions.blade.php`
+- `hyperframes/package.json`
+- `hyperframes/package-lock.json`
+- `hyperframes/assets/vendor/gsap.min.js`
+- `tests/Feature/HyperFramesRendererTest.php`
+
 Modified:
 
-- `app/Services/Publishing/YouTubePublishService.php`
-- `app/Services/Publishing/CoPilotReviewService.php`
-- `app/Services/Automation/AutopilotGateService.php`
-- `app/Models/PublishingApprovalSession.php`
-- `app/Models/CoPilotReviewSession.php`
-- `app/Console/Commands/AiPvgDiagnosticsCommand.php`
+- `app/Providers/AppServiceProvider.php`
 - `app/Livewire/StudioDashboard.php`
 - `resources/views/studio/dashboard.blade.php`
 - `config/automation.php`
 - `.env.example`
-- `tests/Feature/PhaseHPublishingTest.php`
-- `PROJECT_STATUS.md`, `PROJECT_ROADMAP.md`, `AUTOMATION_EXPANSION_PROPOSAL.md`
+- `.gitignore`
+- `app/Console/Commands/AiPvgDiagnosticsCommand.php`
+- `OPERATOR_RUNBOOK.md`
+- `PROJECT_STATUS.md`
 
 Phase H migrations were already present at `fdf950c`:
 

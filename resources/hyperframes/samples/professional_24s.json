@@ -1,0 +1,164 @@
+{
+  "version": 1,
+  "title": "How AI Changes Small Team Building",
+  "language": "en",
+  "preset": "9:16",
+  "width": 1080,
+  "height": 1920,
+  "fps": 30,
+  "duration": 21,
+  "theme": "breaking",
+  "transition_family": "blur-wipe",
+  "audio": {
+    "voice": "Zira",
+    "music": "local",
+    "target_lufs": -14,
+    "true_peak": -1.5,
+    "fade_out": 0.5
+  },
+  "scenes": [
+    {
+      "id": "scene-1",
+      "purpose": "hook",
+      "start": 0,
+      "duration": 3.8,
+      "narration": "Small teams ship faster.",
+      "narration_start": 0,
+      "headline": "Small teams ship faster",
+      "headline_words": [
+        {"text": "Small", "emphasis": true},
+        {"text": "teams", "emphasis": true},
+        {"text": "ship", "emphasis": false},
+        {"text": "faster", "emphasis": true}
+      ],
+      "visual": {"kind": "asset", "path": "public/images/scene1.jpg", "attribution": "AI Studio"},
+      "camera": {"type": "push-in", "intensity": 1.0},
+      "transition_in": null,
+      "caption_style": "word-pop",
+      "sfx": [{"cue": "whoosh", "time": 0, "gain": 0.3}],
+      "music_intensity": 0.34,
+      "beats": [{"time": 0, "kind": "reveal"}, {"time": 1.9, "kind": "camera"}, {"time": 3.8, "kind": "transition"}]
+    },
+    {
+      "id": "scene-2",
+      "purpose": "context",
+      "start": 3.8,
+      "duration": 3.0,
+      "narration": "AI replaces drudgery.",
+      "narration_start": 3.6,
+      "headline": "AI replaces drudgery",
+      "headline_words": [
+        {"text": "AI", "emphasis": true},
+        {"text": "replaces", "emphasis": false},
+        {"text": "drudgery", "emphasis": true}
+      ],
+      "visual": {"kind": "generated", "pattern": "orbital", "palette": ["#ff3b5c", "#ffb020", "#160a12"]},
+      "camera": {"type": "pan-right", "intensity": 0.9},
+      "transition_in": {"type": "blur-wipe-right", "family": "blur-wipe", "duration": 0.42},
+      "caption_style": "word-pop",
+      "sfx": [{"cue": "hit", "time": 3.88, "gain": 0.28}],
+      "music_intensity": 0.26,
+      "beats": [{"time": 3.8, "kind": "transition"}, {"time": 5.1, "kind": "camera"}]
+    },
+    {
+      "id": "scene-3",
+      "purpose": "evidence",
+      "start": 6.8,
+      "duration": 3.2,
+      "narration": "3 agents do 14 jobs.",
+      "narration_start": 6.8,
+      "headline": "3 agents do 14 jobs",
+      "headline_words": [
+        {"text": "3", "emphasis": true},
+        {"text": "agents", "emphasis": false},
+        {"text": "do", "emphasis": false},
+        {"text": "14", "emphasis": true},
+        {"text": "jobs", "emphasis": false}
+      ],
+      "visual": {"kind": "asset", "path": "public/images/scene3.jpg", "attribution": "Data Source"},
+      "camera": {"type": "push-in", "intensity": 0.85},
+      "transition_in": {"type": "blur-wipe-left", "family": "blur-wipe", "duration": 0.42},
+      "caption_style": "word-pop",
+      "sfx": [{"cue": "whoosh", "time": 6.8, "gain": 0.5}, {"cue": "hit", "time": 7.08, "gain": 0.28}],
+      "music_intensity": 0.22,
+      "beats": [{"time": 6.8, "kind": "transition"}, {"time": 8.2, "kind": "camera"}, {"time": 9.5, "kind": "payoff"}]
+    },
+    {
+      "id": "scene-4",
+      "purpose": "payoff",
+      "start": 10.0,
+      "duration": 3.2,
+      "narration": "Faster sharper.",
+      "narration_start": 10.0,
+      "headline": "Faster sharper",
+      "headline_words": [
+        {"text": "Faster", "emphasis": true},
+        {"text": "sharper", "emphasis": true}
+      ],
+      "visual": {"kind": "generated", "pattern": "prism"},
+      "camera": {"type": "parallax", "intensity": 0.95},
+      "transition_in": {"type": "blur-wipe-right", "family": "blur-wipe", "duration": 0.42},
+      "caption_style": "word-pop",
+      "sfx": [{"cue": "riser", "time": 9.5, "gain": 0.32}, {"cue": "hit", "time": 10.38, "gain": 0.22}],
+      "music_intensity": 0.3,
+      "beats": [{"time": 10.0, "kind": "transition"}, {"time": 12.2, "kind": "data"}, {"time": 13.6, "kind": "payoff"}]
+    },
+    {
+      "id": "scene-5",
+      "purpose": "cta",
+      "start": 13.2,
+      "duration": 3.6,
+      "narration": "Start one task.",
+      "narration_start": 13.2,
+      "headline": "Start one task",
+      "headline_words": [
+        {"text": "Start", "emphasis": true},
+        {"text": "one", "emphasis": false},
+        {"text": "task", "emphasis": true}
+      ],
+      "visual": {"kind": "asset", "path": "public/images/cta.jpg", "attribution": "Brand"},
+      "camera": {"type": "drift-up", "intensity": 0.8},
+      "transition_in": {"type": "blur-wipe-left", "family": "blur-wipe", "duration": 0.42},
+      "caption_style": "word-pop",
+      "sfx": [{"cue": "hit", "time": 13.48, "gain": 0.28}],
+      "music_intensity": 0.38,
+      "beats": [{"time": 13.2, "kind": "transition"}, {"time": 15.0, "kind": "camera"}, {"time": 17.0, "kind": "payoff"}]
+    },
+    {
+      "id": "scene-6",
+      "purpose": "cta",
+      "start": 16.8,
+      "duration": 4.2,
+      "narration": "Done.",
+      "narration_start": 16.8,
+      "headline": "Right people + tools",
+      "headline_words": [
+        {"text": "Right", "emphasis": true},
+        {"text": "people", "emphasis": false},
+        {"text": "+", "emphasis": false},
+        {"text": "tools", "emphasis": true}
+      ],
+      "visual": {"kind": "generated", "pattern": "halo"},
+      "camera": {"type": "push-in", "intensity": 0.7},
+      "transition_in": {"type": "blur-wipe-right", "family": "blur-wipe", "duration": 0.42},
+      "caption_style": "word-pop",
+      "sfx": [{"cue": "hit", "time": 17.08, "gain": 0.22}],
+      "music_intensity": 0.42,
+      "beats": [{"time": 16.8, "kind": "transition"}, {"time": 19.0, "kind": "caption"}, {"time": 21.0, "kind": "payoff"}]
+    }
+  ],
+  "beats": [
+    {"time": 0, "kind": "reveal"},
+    {"time": 3.8, "kind": "transition"},
+    {"time": 6.8, "kind": "transition"},
+    {"time": 10.0, "kind": "transition"},
+    {"time": 13.2, "kind": "transition"},
+    {"time": 16.8, "kind": "transition"},
+    {"time": 21.0, "kind": "payoff"}
+  ],
+  "ending": {
+    "payoff": "Right people + tools",
+    "fade_out_video": 0.5,
+    "fade_out_audio": 0.5
+  }
+}

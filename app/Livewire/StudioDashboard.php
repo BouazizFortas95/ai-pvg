@@ -22,6 +22,7 @@ use App\Services\Automation\Greenlight\AutoGreenlightService;
 use App\Services\Automation\Triage\TriageGate;
 use App\Services\Publishing\PublishingGate;
 use App\Services\ThemeEngine;
+use App\Support\HyperFramesRuntime;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -245,6 +246,7 @@ class StudioDashboard extends Component
             'scriptPreviews' => $scriptPreviews,
             'phaseH' => $this->buildPhaseHStatus(),
             'isAdmin' => $this->canReviewScriptAgents(),
+            'hyperframes' => HyperFramesRuntime::status(),
         ]);
     }
 
