@@ -213,4 +213,3 @@ class AudioTimelineManifestTest extends TestCase
         $this->assertStringContainsString('file is empty', implode('; ', $result2['errors']));
     }
 }
-

@@ -212,6 +212,7 @@ class HyperFramesCompositionBuilder
             'fontFamily' => $fontFamily,
             'sceneHosts' => $sceneHosts,
             'captionHost' => $captionHost,
+            'avatarHost' => $options['avatar_host'] ?? null,
             'audioClips' => $audioClips,
         ])->render();
 

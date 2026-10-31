@@ -96,6 +96,7 @@ The earlier G-05/G-06 commit message did not name Phase H; the checkpoint hash i
 | 11 | G-05 licensed visual assets + Remotion props | Yes | Yes | Inert by default | **DONE** |
 | 12 | G-06 format fan-out, thumbnails, A/B metadata | Yes | Yes | Inert/dry-run | **DONE** |
 | 13 | Phase H publishing guard + Co-Pilot + autopilot gates | Yes | Yes | No live upload | **DONE** |
+| 14 | AI Presenter / Avatar System (M1..M6 code-made SVG/GSAP presenter, lip-sync, ToneGuard, dual-mode) | Yes | Yes | Yes (local HyperFrames lint & verified) | **DONE** |
 
 ---
 
@@ -439,6 +440,40 @@ Phase H migrations were already present at `fdf950c`:
 - `database/migrations/2026_10_24_180000_create_publishing_approval_sessions_table.php`
 - `database/migrations/2026_10_24_180100_create_co_pilot_review_sessions_table.php`
 
+### 9.7 AI Presenter / Avatar System files (Milestones M1 through M6)
+
+Created:
+
+- `app/Services/Avatar/AvatarPrng.php` (mulberry32 seeded PRNG matching Node 22 Math.imul bit-for-bit)
+- `app/Services/Avatar/CharacterSpec.php` (12 visual dimensions, enums, generator, validator)
+- `app/Services/Avatar/CharacterGenerator.php` (seeded character generator, SHA-256 fingerprint, category distance)
+- `app/Services/Avatar/VisemeMapper.php` (6 visemes, word lookup, per-frame lip-sync track generator)
+- `app/Services/Avatar/PresenterStyleGenerator.php` (sets, tools, camera motion, SFX cues, transitions)
+- `app/Services/Avatar/VariationEngine.php` (Mode A uniqueness with history window 200, Mode B character locking)
+- `app/Services/Avatar/ToneGuard.php` (sensitivity classifier normal/sensitive/tragic, smile/playful ban)
+- `app/Services/Avatar/EmotionAnnotator.php` (emotional beat parser, rate-limiter <= 3/s, gesture return-to-rest)
+- `app/Services/Avatar/PresenterCompositionWriter.php` (HyperFrames <template> presenter composition builder)
+- `app/Services/Avatar/PresenterSceneCompiler.php` (dual-mode compiler, timeline alignment, render coordinator)
+- `app/Services/Avatar/AvatarQaService.php` (7-gate QA audit suite: lip-sync, liveness, style, tone guard, rate limit, gesture rest, determinism)
+- `app/Models/AvatarCharacter.php` (Eloquent model for Mode B fixed characters)
+- `app/Models/VariationHistory.php` (Eloquent model for Mode A history window)
+- `database/migrations/2026_10_31_200000_create_avatar_characters_table.php` (additive migration)
+- `database/migrations/2026_10_31_200100_create_variation_history_table.php` (additive migration)
+- `resources/views/hyperframes/presenter.blade.php` (14-layer SVG rig, GSAP lip-sync/blink, sets, tools, cameras, transitions, disclosure badge)
+- `app/Console/Commands/AvatarVerifyCommand.php` (7-gate verification CLI, seed, mode, character-id, variation, execute, render)
+- `tests/Feature/AvatarM1Test.php` (21 passed)
+- `tests/Feature/AvatarM2Test.php` (10 passed)
+- `tests/Feature/AvatarM3Test.php` (9 passed)
+- `tests/Feature/AvatarM4Test.php` (11 passed)
+- `tests/Feature/AvatarM5Test.php` (4 passed)
+- `tests/Feature/AvatarM6Test.php` (10 passed)
+
+Modified:
+
+- `config/automation.php` (avatar configuration: feature flag, mode, history_window, similarity_min_diff_categories, sets, tools, cameras)
+- `resources/views/hyperframes/root.blade.php` (sub-composition mounting on track 5)
+- `app/Services/Rendering/HyperFramesCompositionBuilder.php` (support for avatarHost sub-composition)
+
 ---
 
 ## 10. Remaining External Verification Boundary
@@ -452,3 +487,59 @@ The following are intentionally outside the tested Phase H implementation and ar
 5. Real analytics ingestion, experimentation deployment, and compliance/legal workflows.
 
 These boundaries are documented so the completed MVP is not misrepresented as a live-publishing system.
+
+---
+
+## 11. AI Presenter / Avatar System (Subsystem #14 · M1..M6 Complete)
+
+The AI Presenter / Avatar System adds code-generated animated virtual presenters delivering news statements with lip-sync, facial expressions, gestures, and tone guard controls.
+
+### 11.1 Architecture & Core Components
+
+1. **AvatarPrng (`app/Services/Avatar/AvatarPrng.php`)**:
+   - Deterministic 32-bit mulberry32 PRNG.
+   - Guaranteed bit-for-bit equivalence between PHP 8.2 and Node 22 JavaScript engines via 32-bit `imul()` emulation.
+   - Zero use of `Math.random()` or `Date.now()`.
+
+2. **CharacterSpec (`app/Services/Avatar/CharacterSpec.php`)**:
+   - 12 strict visual dimensions: `head_shape`, `skin_tone`, `hair_style`, `hair_color`, `eye_style`, `brow_style`, `mouth_style`, `facial_hair`, `glasses`, `outfit`, `palette`, `body_proportions`.
+   - Strict enum validation and deterministic generator.
+
+3. **VisemeMapper (`app/Services/Avatar/VisemeMapper.php`)**:
+   - Maps speech words and audio timings to 6 visemes: `closed`, `small`, `wide`, `round`, `fv`, `th`.
+   - Generates frame-accurate lip-sync tracks at target FPS (default 30).
+
+4. **PresenterStyleGenerator (`app/Services/Avatar/PresenterStyleGenerator.php`)**:
+   - Generates non-identity run styles: 5 dynamic virtual sets, 4 broadcast tools, 4 camera motions, 4 SFX cues, 3 transitions, and accent palettes.
+   - Computes SHA-256 style fingerprint.
+
+5. **VariationEngine (`app/Services/Avatar/VariationEngine.php`)**:
+   - **Mode A (Infinite Variety)**: Evaluates candidate against the last $N=200$ runs in `variation_history`. Ensures at least 4 out of 12 visual categories differ. Re-rolls with derived seed on collision.
+   - **Mode B (Fixed Character)**: Locks character identity from `avatar_characters` table (`character_id`) while varying non-identity styles per run.
+
+6. **ToneGuard & EmotionAnnotator (`app/Services/Avatar/ToneGuard.php`, `app/Services/Avatar/EmotionAnnotator.php`)**:
+   - Classifies script sentences into sensitivities: `normal`, `sensitive`, `tragic`.
+   - Tone guard enforcement: strictly bans smiling expressions and playful gestures in sensitive and tragic contexts.
+   - Expression rate limiter: limits facial changes to $\le 3/\text{s}$ (minimum interval $\ge 0.33\text{s}$).
+   - Gesture return-to-rest lifecycle: ensures all arm/hand gestures return to rest before scene boundaries.
+
+7. **PresenterSceneCompiler & Writer (`app/Services/Avatar/PresenterSceneCompiler.php`, `PresenterCompositionWriter.php`)**:
+   - Builds complete HyperFrames projects mounting `presenter.html` as a sub-composition on track 5 in `index.html`.
+   - Wraps presenter in `<template>` tags matching the HyperFrames sub-composition specification.
+   - Aligns total scene durations to `audio_timeline.json` total duration.
+
+8. **AvatarQaService (`app/Services/Avatar/AvatarQaService.php`)**:
+   - 7-Gate QA verification engine:
+     - **Gate 1**: Lip-sync coverage ($\ge 60\%$ open frames during speech).
+     - **Gate 2**: Liveness & AI disclosure badge (0–3s duration, eyelid blinks, `window.__timelines` registration).
+     - **Gate 3**: Style integrity (`data-sfx-cue`, `data-set-style`, `pvg-tool`).
+     - **Gate 4**: Tone Guard compliance (zero smile/gesture violations in sensitive/tragic context).
+     - **Gate 5**: Expression rate limit ($\le 3/\text{s}$, interval $\ge 0.33\text{s}$).
+     - **Gate 6**: Gesture return-to-rest guarantee.
+     - **Gate 7**: Seed determinism invariance.
+
+### 11.2 Safety & Ethical Controls
+- **Stylized Originals**: Characters are pure SVG code; no real persons, no public figures, no copyrighted/branded assets.
+- **AI Disclosure Badge**: Mandatory on-screen disclosure badge ("AI-generated presenter") displayed during the opening 0–3s.
+- **Fail-Closed Feature Flag**: Controlled via `config('automation.avatar.feature_flag')` (`avatar.enabled`). Default is `false`. Pipeline fails closed without `--force` or enabled flag.
+- **Tone Guard Guarantee**: Tragic/sensitive stories restrict expressive output (no smiles, subdued palettes, solemn gestures only).

@@ -269,4 +269,14 @@ return [
         'allow_public_without_dual_approval' => false,
         'default_visibility' => 'private',
     ],
+
+    'avatar' => [
+        'enabled' => (bool) env('AUTOMATION_AVATAR_ENABLED', false),
+        'feature_flag' => env('AUTOMATION_AVATAR_FEATURE_FLAG', 'avatar.enabled'),
+        'mode' => env('AUTOMATION_AVATAR_MODE', 'infinite'),
+        'character_id' => env('AUTOMATION_AVATAR_CHARACTER_ID'),
+        'variation' => env('AUTOMATION_AVATAR_VARIATION', 'medium'),
+        'history_window' => (int) env('AUTOMATION_AVATAR_HISTORY_WINDOW', 200),
+        'similarity_min_diff_categories' => (int) env('AUTOMATION_AVATAR_SIMILARITY_MIN_DIFF', 4),
+    ],
 ];

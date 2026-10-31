@@ -393,6 +393,10 @@
 
 <div class="pvg-studio">
 
+    @if($runningStep)
+        <div wire:poll.2s="pollRunningStages"></div>
+    @endif
+
     {{-- ═══════════════════════════════════════════════════════════════════
          HERO COMMAND CENTER HEADER
     ════════════════════════════════════════════════════════════════════ --}}
@@ -510,6 +514,62 @@
         <span>Executing pipeline stage... Please wait while AI-PVG processes this step in local mode.</span>
     </div>
 
+    @if($runningStep)
+        @php
+            $isQueued = ($runningStatus === 'queued');
+            $isStalled = ($runningStatus === 'stalled');
+            $bannerBg = $isQueued 
+                ? 'linear-gradient(90deg, rgba(59, 130, 246, 0.15) 0%, rgba(99, 102, 241, 0.15) 100%)' 
+                : ($isStalled 
+                    ? 'linear-gradient(90deg, rgba(239, 68, 68, 0.15) 0%, rgba(245, 158, 11, 0.15) 100%)' 
+                    : 'linear-gradient(90deg, rgba(234, 179, 8, 0.15) 0%, rgba(249, 115, 22, 0.15) 100%)');
+            $bannerBorder = $isQueued ? '#3b82f6' : ($isStalled ? '#ef4444' : '#f59e0b');
+            $bannerColor = $isQueued ? '#60a5fa' : ($isStalled ? '#f87171' : '#fbbf24');
+        @endphp
+        <div class="pvg-preloader-banner" style="background: {{ $bannerBg }}; border-color: {{ $bannerBorder }}; color: {{ $bannerColor }};">
+            <div class="pvg-spinner" style="border-top-color: {{ $bannerBorder }};"></div>
+            <div class="flex-1 flex items-center justify-between flex-wrap gap-2">
+                <span>
+                    @if($isQueued)
+                        <strong>Step {{ $runningStep }} Queued (Waiting for Queue Worker)</strong> — Waiting: {{ $runningElapsed }}s · Status: QUEUED
+                    @elseif($isStalled)
+                        <strong>Step {{ $runningStep }} Stalled (No Heartbeat &gt; 60s)</strong> — Elapsed: {{ $runningElapsed }}s · Status: STALLED
+                    @else
+                        <strong>Step {{ $runningStep }} Running (Async Background Job)</strong> — Elapsed: {{ $runningElapsed }}s · Status: {{ strtoupper($runningStatus ?? 'RUNNING') }}
+                    @endif
+                </span>
+                <div class="flex items-center gap-2">
+                    <x-filament::button color="success" size="xs" wire:click="processRunningStepNow">
+                        Process in Foreground Now
+                    </x-filament::button>
+                    <x-filament::button color="danger" size="xs" wire:click="cancelRunningStep">
+                        Cancel Step {{ $runningStep }}
+                    </x-filament::button>
+                </div>
+            </div>
+        </div>
+
+        @if($workerNotRunning && $isQueued)
+            <div class="pvg-summary-box" style="border-left: 3px solid #3b82f6; background: rgba(59, 130, 246, 0.1); color: #93c5fd; margin-top: 0.5rem;">
+                <div class="font-bold text-blue-300">Queue worker not running or wrong queue detected</div>
+                <div class="text-xs text-gray-200 mt-1">
+                    Job has been waiting in database queue <code>default</code>. To run jobs asynchronously in the background, start a worker via:
+                    <div class="font-mono bg-gray-950 p-2 rounded text-emerald-400 mt-1 selection:bg-emerald-800">php artisan queue:work --queue=default</div>
+                    Or click <strong>Process in Foreground Now</strong> above to complete this step immediately in this web session.
+                </div>
+            </div>
+        @endif
+    @endif
+
+    @if($runningError)
+        <div class="pvg-summary-box" style="border-left: 3px solid #ef4444; background: rgba(239, 68, 68, 0.1); color: #fca5a5;">
+            <div class="font-bold text-red-400">Step Failed: {{ $runningError }}</div>
+            @if($runningFixHint)
+                <div class="text-xs text-gray-300 mt-1">💡 <strong>Suggested Fix:</strong> {{ $runningFixHint }}</div>
+            @endif
+        </div>
+    @endif
+
     {{-- ═══════════════════════════════════════════════════════════════════
          THE 6 INTERACTIVE STEP CARDS TIMELINE
     ════════════════════════════════════════════════════════════════════ --}}
@@ -570,6 +630,12 @@
                 </div>
             </div>
 
+            @if($appliedFlagsSummary)
+                <div class="mt-2 text-xs font-mono text-emerald-400 bg-gray-950 p-2 rounded border border-gray-800">
+                    <span class="text-gray-400 font-sans font-medium">Applied Local Flags:</span> {{ $appliedFlagsSummary }}
+                </div>
+            @endif
+
             <div class="pvg-card-footer">
                 <div class="text-xs text-gray-400">
                     Active Sources: <strong>{{ $m1['active_sources'] }}</strong> · Categories: <strong>{{ $m1['categories'] }}</strong>
@@ -586,6 +652,7 @@
                         size="md"
                         icon="heroicon-m-bolt"
                         wire:click="runStep1"
+                        :disabled="!empty($runningStep)"
                     >
                         {{ $s1Done ? 'Re-load Breaking News' : 'Run Step 1: Prepare & Load News' }}
                     </x-filament::button>
@@ -673,7 +740,7 @@
                         size="md"
                         icon="heroicon-m-sparkles"
                         wire:click="runStep2"
-                        :disabled="$s2Locked"
+                        :disabled="$s2Locked || !empty($runningStep)"
                     >
                         {{ $s2Done ? 'Re-Score & Cluster' : 'Run Step 2: Score & Select Cluster' }}
                     </x-filament::button>
@@ -769,7 +836,7 @@
                         size="md"
                         icon="heroicon-m-document-text"
                         wire:click="runStep3"
-                        :disabled="$s3Locked"
+                        :disabled="$s3Locked || !empty($runningStep)"
                     >
                         {{ $s3Done ? 'Re-generate Script' : 'Run Step 3: Generate Script & 3 Hooks' }}
                     </x-filament::button>
@@ -859,7 +926,7 @@
                         size="md"
                         icon="heroicon-m-microphone"
                         wire:click="runStep4"
-                        :disabled="$s4Locked"
+                        :disabled="$s4Locked || !empty($runningStep)"
                     >
                         {{ $s4Done ? 'Re-generate Audio & Captions' : 'Run Step 4: Build Captions & Audio Mix' }}
                     </x-filament::button>
@@ -948,7 +1015,7 @@
                         size="md"
                         icon="heroicon-m-photo"
                         wire:click="runStep5"
-                        :disabled="$s5Locked"
+                        :disabled="$s5Locked || !empty($runningStep)"
                     >
                         {{ $s5Done ? 'Re-inject Scene Props' : 'Run Step 5: Inject Visual Props & Formats' }}
                     </x-filament::button>
@@ -998,8 +1065,8 @@
                 <div class="pvg-field-group">
                     <label class="pvg-field-label">Render Backend Engine</label>
                     <select wire:model.live="step6Backend" class="pvg-select" @if($s6Locked) disabled @endif>
-                        <option value="remotion">Remotion Engine (Primary H.264 / React)</option>
-                        <option value="hyperframes">HyperFrames Engine (HTML/CSS/GSAP)</option>
+                        <option value="hyperframes">HyperFrames Engine (Default / Fast / Full Typography &amp; Audio)</option>
+                        <option value="remotion">Remotion Engine (Fallback / React H.264)</option>
                     </select>
                 </div>
 
@@ -1022,11 +1089,14 @@
                 </div>
             </div>
 
-            {{-- Verified MP4 Media List --}}
+            {{-- Verified MP4 Media List & Player --}}
             @if(!empty($m6['mp4_files']))
                 <div class="mt-3">
                     <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Verified Output Files:</p>
                     @foreach($m6['mp4_files'] as $file)
+                        @php
+                            $isHyperframes = str_contains($file['name'], 'hyperframes');
+                        @endphp
                         <div class="pvg-media-card">
                             <div class="flex items-center gap-2.5 truncate">
                                 <span class="text-emerald-400 font-bold">🎬</span>
@@ -1034,10 +1104,34 @@
                             </div>
                             <div class="flex items-center gap-2 shrink-0">
                                 <span class="text-xs text-gray-400">{{ $file['size'] }}</span>
-                                <x-filament::badge color="success">✓ FFprobe verified</x-filament::badge>
+                                @if($isHyperframes)
+                                    <x-filament::badge color="success">✓ HyperFrames 1080x1920 (Audio + Real Script)</x-filament::badge>
+                                @else
+                                    <x-filament::badge color="info">✓ Remotion Verified</x-filament::badge>
+                                @endif
                             </div>
                         </div>
                     @endforeach
+
+                    @php
+                        $latestFile = $m6['mp4_files'][0] ?? null;
+                    @endphp
+                    @if($latestFile)
+                        <div class="mt-4 p-4 rounded-xl border border-gray-800 bg-gray-950/70 flex flex-col items-center">
+                            <div class="w-full flex items-center justify-between mb-2">
+                                <span class="text-xs font-medium text-gray-300">Latest Render Player: <strong class="text-emerald-400">{{ $latestFile['name'] }}</strong></span>
+                                <span class="text-xs text-gray-400">{{ $latestFile['size'] }}</span>
+                            </div>
+                            <video
+                                controls
+                                preload="metadata"
+                                style="max-height: 480px; max-width: 100%; border-radius: 12px; background: #000;"
+                                src="{{ route('media.video_out', ['filename' => $latestFile['name']]) }}"
+                            >
+                                Your browser does not support the video tag.
+                            </video>
+                        </div>
+                    @endif
                 </div>
             @endif
 
@@ -1061,7 +1155,7 @@
                         size="md"
                         icon="heroicon-m-film"
                         wire:click="runStep6"
-                        :disabled="$s6Locked"
+                        :disabled="$s6Locked || !empty($runningStep)"
                     >
                         {{ $s6Done ? 'Re-render Final MP4' : 'Step 6: Render & Verify MP4 Now' }}
                     </x-filament::button>

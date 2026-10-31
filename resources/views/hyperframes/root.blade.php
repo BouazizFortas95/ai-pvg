@@ -94,6 +94,20 @@
         ></div>
       @endif
 
+      @if (!empty($avatarHost))
+        <div
+          id="{{ $avatarHost['id'] ?? 'avatar-presenter' }}"
+          data-composition-id="{{ $avatarHost['composition_id'] ?? 'pvg-presenter' }}"
+          data-composition-src="{{ $avatarHost['src'] ?? 'compositions/presenter.html' }}"
+          data-start="{{ $avatarHost['start'] ?? '0' }}"
+          data-duration="{{ $avatarHost['duration'] ?? $duration }}"
+          data-track-index="{{ $avatarHost['track'] ?? 5 }}"
+          data-track-kind="graphics"
+          data-width="{{ $width }}"
+          data-height="{{ $height }}"
+        ></div>
+      @endif
+
       @foreach ($audioClips as $audio)
         <audio
           id="{{ $audio['id'] }}"

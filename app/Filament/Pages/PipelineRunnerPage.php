@@ -4,30 +4,20 @@ namespace App\Filament\Pages;
 
 use App\Enums\UserRole;
 use App\Models\CaptionTrack;
-use App\Models\FeatureFlag;
-use App\Models\MetadataVariant;
 use App\Models\News;
 use App\Models\NewsCategory;
 use App\Models\NewsScore;
 use App\Models\NewsSource;
+use App\Models\PipelineRun;
+use App\Models\PipelineRunStage;
 use App\Models\SceneAsset;
 use App\Models\ScriptFactCheck;
 use App\Models\ScriptVariant;
 use App\Models\StoryCluster;
 use App\Models\User;
-use App\Models\VideoRender;
 use App\Models\VideoScript;
 use App\Models\VoiceGeneration;
-use App\Services\AI\Captions\CaptionTrackBuilder;
-use App\Services\AI\Captions\WordTimingService;
-use App\Services\AI\ScriptPipeline\ScriptPipelineService;
-use App\Services\Automation\FanOutBatchService;
-use App\Services\Automation\RemotionPropInjector;
-use App\Services\Automation\ScenePropBuilder;
-use App\Services\Automation\Triage\TriageGate;
-use App\Services\Automation\Triage\TriageRunner;
-use App\Services\RssImportService;
-use App\Services\VoiceGenerationService;
+use App\Services\Pipeline\PipelineStepService;
 use BackedEnum;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
@@ -79,6 +69,30 @@ class PipelineRunnerPage extends Page
     /** @var array<string, string> Historical step logs. */
     public array $stepLogs = [];
 
+    // ── Persistent Run & Background Job State ────────────────────────────────
+    public ?string $currentRunId = null;
+
+    public ?int $runningStep = null;
+
+    public ?int $runningStageId = null;
+
+    public int $runningElapsed = 0;
+
+    public ?string $runningStatus = null;
+
+    public ?string $runningError = null;
+
+    public ?string $runningFixHint = null;
+
+    public bool $workerNotRunning = false;
+
+    public ?string $appliedFlagsSummary = null;
+
+    public function mount(): void
+    {
+        $this->restoreActiveRun();
+    }
+
     // ── Step Interactive Control Properties ──────────────────────────────────
 
     /** @var string Step 1 News source mode: 'mock_cluster', 'ready_news', or 'live_rss'. */
@@ -108,8 +122,8 @@ class PipelineRunnerPage extends Page
     /** @var bool Step 5 Generate A/B thumbnails and metadata. */
     public bool $step5Thumbnails = true;
 
-    /** @var string Step 6 Render backend: 'remotion' or 'hyperframes'. */
-    public string $step6Backend = 'remotion';
+    /** @var string Step 6 Render backend: 'hyperframes' (default) or 'remotion'. */
+    public string $step6Backend = 'hyperframes';
 
     /** @var string Step 6 Target aspect ratio: '9:16', '16:9', '1:1'. */
     public string $step6AspectRatio = '9:16';
@@ -250,8 +264,202 @@ class PipelineRunnerPage extends Page
     }
 
     // ═════════════════════════════════════════════════════════════════════════
-    // THE 6 SEQUENTIAL STEP ACTIONS
+    // THE 6 SEQUENTIAL STEP ACTIONS (DELEGATING TO PipelineStepService)
     // ═════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Restore any active or running pipeline run from the database.
+     */
+    public function restoreActiveRun(): void
+    {
+        if (! Schema::hasTable('pipeline_runs')) {
+            return;
+        }
+
+        $active = PipelineRun::query()
+            ->with('stages')
+            ->whereIn('status', ['running', 'pending'])
+            ->latest()
+            ->first();
+
+        if ($active) {
+            $this->currentRunId = $active->run_id;
+            $this->completedSteps = $active->completed_steps ?? [];
+            $this->currentStep = $active->current_step ?? 1;
+
+            $runningStage = $active->stages->first(fn ($s) => in_array($s->status, ['running', 'queued'], true));
+            if ($runningStage) {
+                $this->runningStep = $runningStage->step_number;
+                $this->runningStageId = $runningStage->id;
+                $this->runningStatus = $runningStage->status;
+                $this->runningElapsed = $runningStage->elapsedSeconds();
+                if ($runningStage->isQueued() && $runningStage->queuedSeconds() > 15) {
+                    $this->workerNotRunning = true;
+                }
+            }
+        }
+    }
+
+    /**
+     * Poll running stages for background job updates.
+     */
+    public function pollRunningStages(): void
+    {
+        if (! $this->runningStageId || ! Schema::hasTable('pipeline_run_stages')) {
+            return;
+        }
+
+        $stage = PipelineRunStage::query()->find($this->runningStageId);
+        if (! $stage) {
+            $this->clearRunningState();
+
+            return;
+        }
+
+        $this->runningElapsed = $stage->elapsedSeconds();
+        $this->runningStatus = $stage->status;
+
+        if ($stage->status === 'queued') {
+            if ($stage->queuedSeconds() > 15) {
+                $this->workerNotRunning = true;
+            }
+        } elseif ($stage->status === 'running') {
+            $this->workerNotRunning = false;
+            if ($stage->isStalled(60)) {
+                $this->runningStatus = 'stalled';
+            }
+        }
+
+        if ($stage->status === 'completed') {
+            $step = $stage->step_number;
+            $this->lastOutput = $stage->log ?? '';
+            $this->stepLogs['step'.$step] = $stage->log ?? '';
+
+            if (! in_array($step, $this->completedSteps, true)) {
+                $this->completedSteps[] = $step;
+            }
+            $this->currentStep = min(6, $step + 1);
+
+            Notification::make()
+                ->title("Step {$step} Complete!")
+                ->body("Stage completed in {$this->runningElapsed}s.")
+                ->success()
+                ->send();
+
+            $this->clearRunningState();
+        } elseif ($stage->status === 'failed') {
+            $this->runningError = $stage->error_message;
+            $this->runningFixHint = $stage->fix_hint;
+            $this->lastOutput = $stage->log ?? $stage->error_message ?? '';
+
+            Notification::make()
+                ->title("Step {$stage->step_number} Failed")
+                ->body($stage->error_message ?? 'Unknown error occurred.')
+                ->danger()
+                ->send();
+        } elseif ($stage->status === 'cancelled') {
+            $this->clearRunningState();
+            Notification::make()->title('Step cancelled')->info()->send();
+        }
+    }
+
+    /**
+     * Cancel an active running background step.
+     */
+    public function cancelRunningStep(): void
+    {
+        $this->assertAdmin();
+
+        if ($this->runningStep && $this->currentRunId) {
+            $run = PipelineRun::query()->where('run_id', $this->currentRunId)->first();
+            if ($run) {
+                app(PipelineStepService::class)->cancelStep($this->runningStep, $run);
+            }
+        }
+
+        $this->clearRunningState();
+
+        Notification::make()
+            ->title('Step Cancelled')
+            ->body('Running stage was stopped.')
+            ->warning()
+            ->send();
+    }
+
+    /**
+     * Process an active/queued step synchronously in foreground when worker is offline.
+     */
+    public function processRunningStepNow(): void
+    {
+        $this->assertAdmin();
+
+        if (! $this->runningStep || ! $this->currentRunId) {
+            return;
+        }
+
+        /** @var PipelineStepService $service */
+        $service = app(PipelineStepService::class);
+        $run = PipelineRun::query()->where('run_id', $this->currentRunId)->first();
+        if (! $run) {
+            return;
+        }
+
+        $step = $this->runningStep;
+        $options = match ($step) {
+            4 => [
+                'script_id' => $this->selectedScriptId,
+                'caption_style' => $this->step4CaptionStyle,
+                'ducking' => $this->step4Ducking,
+                'backend' => $this->step6Backend,
+            ],
+            6 => [
+                'backend' => $this->step6Backend,
+                'aspect_ratio' => $this->step6AspectRatio,
+                'theme' => $this->step6Theme,
+                'script_id' => $this->selectedScriptId,
+            ],
+            default => [],
+        };
+
+        try {
+            $stage = $run->markStepRunning($step, PipelineStepService::STEP_NAMES[$step] ?? 'step_'.$step);
+            $this->runningStatus = 'running';
+
+            $result = $service->executeStep($step, $run, $options, auth()->id(), $stage);
+
+            $this->recordStepComplete($step, $result['log'], min(6, $step + 1));
+            $this->clearRunningState();
+
+            Notification::make()
+                ->title("Step {$step} Complete (Synchronous)")
+                ->body('Stage finished successfully in foreground.')
+                ->success()
+                ->send();
+        } catch (Throwable $e) {
+            $this->runningError = $e->getMessage();
+            $this->runningFixHint = 'Check the terminal output log below for details.';
+            Notification::make()->title("Step {$step} Failed")->body($e->getMessage())->danger()->send();
+        }
+    }
+
+    private function clearRunningState(): void
+    {
+        $this->runningStep = null;
+        $this->runningStageId = null;
+        $this->runningStatus = null;
+        $this->runningElapsed = 0;
+        $this->runningError = null;
+        $this->runningFixHint = null;
+        $this->workerNotRunning = false;
+    }
+
+    private function resolveCurrentRun(PipelineStepService $service): PipelineRun
+    {
+        $run = $service->findOrCreateRun([], auth()->id(), $this->currentRunId);
+        $this->currentRunId = $run->run_id;
+
+        return $run;
+    }
 
     /**
      * Step 1: Prepare & Load Breaking News
@@ -261,45 +469,24 @@ class PipelineRunnerPage extends Page
         $this->assertAdmin();
 
         try {
-            if ($this->step1AutoEnableFlags) {
-                $this->applyLocalPipelineSafety();
+            /** @var PipelineStepService $service */
+            $service = app(PipelineStepService::class);
+            $run = $this->resolveCurrentRun($service);
+
+            $result = $service->runStep1([
+                'source_mode' => $this->step1SourceMode,
+                'auto_enable_flags' => $this->step1AutoEnableFlags,
+                'cluster_size' => 3,
+                'backend' => $this->step6Backend,
+            ], $run, auth()->id());
+
+            $readyCount = $result['artifacts']['ready_news_count'] ?? 0;
+            $flags = $result['artifacts']['flags'] ?? [];
+            if ($flags !== []) {
+                $this->appliedFlagsSummary = implode(', ', array_map(fn ($k, $v) => "{$k}=".($v ? 'true' : 'false'), array_keys($flags), array_values($flags)));
             }
 
-            $log = "=== Step 1: Prepare & Load Breaking News ===\n";
-
-            if ($this->step1SourceMode === 'live_rss' && Schema::hasTable('news_sources')) {
-                $importer = app(RssImportService::class);
-                $sources = NewsSource::query()->where('is_active', true)->get();
-                $imported = 0;
-                foreach ($sources as $source) {
-                    try {
-                        $res = $importer->import($source, ['status' => 'ready']);
-                        $imported += $res->insertedItems;
-                    } catch (Throwable) {
-                        // ignore source failures gracefully
-                    }
-                }
-                $log .= "✓ Imported {$imported} news articles via live RSS feeds\n";
-            } else {
-                Artisan::call('ai-pvg:seed-mock-cluster', [
-                    '--cluster-size' => 3,
-                    '--skip-triage' => true,
-                    '--skip-script' => true,
-                    '--skip-render' => true,
-                ]);
-                $output = Artisan::output();
-                $log .= "✓ Seeded multi-source breaking news cluster (3 sources)\n".trim($output)."\n";
-            }
-
-            $readyCount = Schema::hasTable('news')
-                ? News::query()->where('status', 'ready')->count()
-                : 0;
-
-            $log .= "✓ Ready articles in database: {$readyCount}\n"
-                ."✓ Flags verified: triage, script_agents, captions, assets, formats\n"
-                ."🔒 publishing.enabled = false (strictly enforced)\n";
-
-            $this->recordStepComplete(1, $log, 2);
+            $this->recordStepComplete(1, $result['log'], 2);
 
             Notification::make()
                 ->title('Step 1 Complete: News Prepared & Loaded')
@@ -320,62 +507,30 @@ class PipelineRunnerPage extends Page
         $this->assertAdmin();
 
         try {
-            $this->applyLocalPipelineSafety();
-
-            if (Schema::hasTable('feature_flags')) {
-                FeatureFlag::setFlag('triage.news_scoring_enabled', true);
-            }
+            /** @var PipelineStepService $service */
+            $service = app(PipelineStepService::class);
+            $run = $this->resolveCurrentRun($service);
 
             $threshold = max(0.1, min(0.95, (float) ($this->step2SimilarityThreshold ?: 0.35)));
             $this->step2SimilarityThreshold = $threshold;
 
-            config([
-                'automation.story_clustering.similarity_threshold' => $threshold,
-                'automation.news_scoring.cluster_similarity_threshold' => $threshold,
-            ]);
+            $result = $service->runStep2([
+                'similarity_threshold' => $threshold,
+                'cluster_id' => $this->selectedClusterId,
+                'backend' => $this->step6Backend,
+            ], $run, auth()->id());
 
-            /** @var TriageGate $gate */
-            $gate = app(TriageGate::class);
-            if (! $gate->enabled()) {
-                Notification::make()->title('Triage gate disabled')->warning()->send();
-
-                return;
+            if (! empty($result['artifacts']['cluster_id'])) {
+                $this->selectedClusterId = (int) $result['artifacts']['cluster_id'];
             }
 
-            /** @var TriageRunner $runner */
-            $runner = app(TriageRunner::class);
-            $report = $runner->run(runScoring: true, runClustering: true);
-
-            $scoredCount = count($report->scores);
-            $clusterCount = count($report->clusters);
-
-            $latestCluster = null;
-            if ($this->selectedClusterId && Schema::hasTable('story_clusters')) {
-                $latestCluster = StoryCluster::query()->find($this->selectedClusterId);
-            }
-
-            if (! $latestCluster && Schema::hasTable('story_clusters')) {
-                $latestCluster = StoryCluster::query()->latest()->first();
-                if ($latestCluster) {
-                    $this->selectedClusterId = (int) $latestCluster->getKey();
-                }
-            }
-
-            $log = "=== Step 2: Score News & Build Story Cluster ===\n"
-                ."✓ Scored {$scoredCount} ready article(s)\n"
-                ."✓ Similarity threshold: {$threshold}\n"
-                ."✓ Formed {$clusterCount} cluster(s)\n";
-
-            if ($latestCluster) {
-                $log .= "✓ Target Cluster #{$latestCluster->getKey()}: {$latestCluster->canonical_title}\n"
-                    .'  Confidence score: '.number_format((float) ($latestCluster->confidence ?? 0), 2)."\n";
-            }
-
-            $this->recordStepComplete(2, $log, 3);
+            $this->recordStepComplete(2, $result['log'], 3);
 
             Notification::make()
                 ->title('Step 2 Complete: Story Cluster Formed')
-                ->body($latestCluster ? "Cluster #{$latestCluster->getKey()}: ".Str::limit($latestCluster->canonical_title ?? '', 55) : "Scored {$scoredCount} articles.")
+                ->body(! empty($result['artifacts']['canonical_title'])
+                    ? "Cluster #{$result['artifacts']['cluster_id']}: ".Str::limit($result['artifacts']['canonical_title'], 55)
+                    : "Scored {$result['artifacts']['scored_count']} articles.")
                 ->success()
                 ->send();
         } catch (Throwable $e) {
@@ -392,54 +547,29 @@ class PipelineRunnerPage extends Page
         $this->assertAdmin();
 
         try {
-            $this->applyLocalPipelineSafety();
-
-            if (Schema::hasTable('feature_flags')) {
-                FeatureFlag::setFlag('script_agents.enabled', true);
-            }
+            /** @var PipelineStepService $service */
+            $service = app(PipelineStepService::class);
+            $run = $this->resolveCurrentRun($service);
 
             $duration = max(10, min(180, (int) ($this->step3Duration ?: 45)));
             $this->step3Duration = $duration;
 
-            config([
-                'automation.script_agents.target_duration' => $duration,
-                'automation.script_agents.duration_tolerance' => max(15, (int) ceil($duration * 0.2)),
-                'automation.script_agents.max_scene_seconds' => max(15, (int) ceil($duration / 2)),
-            ]);
+            $result = $service->runStep3([
+                'target_duration' => $duration,
+                'cluster_id' => $this->selectedClusterId,
+                'mode' => $this->step3Mode,
+                'backend' => $this->step6Backend,
+            ], $run, auth()->id());
 
-            $subject = $this->resolveScriptSubject();
-
-            if ($subject === null) {
-                Notification::make()->title('No cluster or ready news available')->warning()->send();
-
-                return;
+            if (! empty($result['artifacts']['script_id'])) {
+                $this->selectedScriptId = (int) $result['artifacts']['script_id'];
             }
 
-            /** @var ScriptPipelineService $pipeline */
-            $pipeline = app(ScriptPipelineService::class);
-            $result = $pipeline->runPipeline($subject);
-
-            $script = $result->script ?? (Schema::hasTable('video_scripts') ? VideoScript::query()->latest()->first() : null);
-
-            if ($script) {
-                $this->selectedScriptId = (int) $script->getKey();
-            }
-
-            $variantCount = Schema::hasTable('script_variants') && $script
-                ? ScriptVariant::query()->where('video_script_id', $script->getKey())->count()
-                : 3;
-
-            $log = "=== Step 3: 3-Agent Script & Fact-Check Pipeline ===\n"
-                .'✓ VideoScript #'.($script?->getKey() ?? '?').': '.($script?->title ?? 'Untitled')."\n"
-                ."✓ Target Duration: {$duration}s\n"
-                ."✓ Hook variants generated: {$variantCount}\n"
-                .'✓ Scenes planned: '.count($script?->scenes ?? [])."\n";
-
-            $this->recordStepComplete(3, $log, 4);
+            $this->recordStepComplete(3, $result['log'], 4);
 
             Notification::make()
                 ->title('Step 3 Complete: AI Script & Hooks Generated')
-                ->body($script ? "Script #{$script->getKey()} ({$duration}s) with {$variantCount} hooks." : "Script generated ({$duration}s).")
+                ->body("Script #{$result['artifacts']['script_id']} ({$duration}s) with {$result['artifacts']['variants_count']} hooks.")
                 ->success()
                 ->send();
         } catch (Throwable $e) {
@@ -455,53 +585,48 @@ class PipelineRunnerPage extends Page
     {
         $this->assertAdmin();
 
-        try {
-            $script = $this->resolveSelectedScript();
-
-            if ($script === null) {
-                Notification::make()->title('No script available — run Step 3 first')->warning()->send();
-
-                return;
-            }
-
-            /** @var VoiceGenerationService $voiceSvc */
-            $voiceSvc = app(VoiceGenerationService::class);
-            $voice = $voiceSvc->generate($script);
-
-            /** @var WordTimingService $timingSvc */
-            $timingSvc = app(WordTimingService::class);
-            $narration = (string) ($script->narration ?? '');
-            $duration = (float) ($script->estimated_duration ?? 30) * 1000;
-            $timings = $timingSvc->estimateFromText($narration, $duration);
-
-            /** @var CaptionTrackBuilder $captionBuilder */
-            $captionBuilder = app(CaptionTrackBuilder::class);
-            $chunks = $captionBuilder->buildChunks($narration, $script->language ?? 'en');
-
-            if (Schema::hasTable('caption_tracks')) {
-                CaptionTrack::query()->create([
-                    'video_script_id' => $script->getKey(),
-                    'language' => $script->language ?? 'en',
-                    'source' => 'estimated',
-                    'style_preset' => ['style' => $this->step4CaptionStyle, 'ducking' => $this->step4Ducking ? -18 : 0],
-                    'word_timings' => $timings,
-                    'status' => 'estimated',
-                ]);
-            }
-
-            $log = "=== Step 4: Voiceover, Word-Level Captions & Audio Mix ===\n"
-                .'✓ Voice synthesis: '.($voice->status?->value ?? 'completed')."\n"
-                .'✓ Monotonic word timings: '.count($timings)." words\n"
-                .'✓ Caption chunks aligned: '.count($chunks)."\n"
-                ."✓ Audio ducking applied: -18dB background bed\n";
-
-            $this->recordStepComplete(4, $log, 5);
-
+        if ($this->runningStep !== null) {
             Notification::make()
-                ->title('Step 4 Complete: Voice & Word Captions Ready')
-                ->body(count($timings).' word timings aligned with synthesized narration.')
-                ->success()
+                ->title('Step Already Active')
+                ->body("Step {$this->runningStep} is currently active. Please wait or cancel it before dispatching another step.")
+                ->warning()
                 ->send();
+
+            return;
+        }
+
+        try {
+            /** @var PipelineStepService $service */
+            $service = app(PipelineStepService::class);
+            $run = $this->resolveCurrentRun($service);
+
+            $options = [
+                'script_id' => $this->selectedScriptId,
+                'caption_style' => $this->step4CaptionStyle,
+                'ducking' => $this->step4Ducking,
+                'backend' => $this->step6Backend,
+            ];
+
+            if (config('queue.default') === 'sync') {
+                $result = $service->runStep4($options, $run, auth()->id());
+                $this->recordStepComplete(4, $result['log'], 5);
+                Notification::make()
+                    ->title('Step 4 Complete: Voice & Word Captions Ready')
+                    ->body("{$result['artifacts']['word_timings_count']} word timings aligned with synthesized narration.")
+                    ->success()
+                    ->send();
+            } else {
+                $stage = $service->dispatchStep(4, $options, $run, auth()->id());
+                $this->runningStep = 4;
+                $this->runningStageId = $stage->id;
+                $this->runningStatus = $stage->status;
+                $this->runningElapsed = $stage->elapsedSeconds();
+                Notification::make()
+                    ->title('Step 4 Dispatched (Queued)')
+                    ->body('Voice synthesis and caption alignment queued for execution.')
+                    ->info()
+                    ->send();
+            }
         } catch (Throwable $e) {
             $this->lastOutput = '✗ Error in Step 4: '.$e->getMessage();
             Notification::make()->title('Step 4 Failed')->body($e->getMessage())->danger()->send();
@@ -516,70 +641,23 @@ class PipelineRunnerPage extends Page
         $this->assertAdmin();
 
         try {
-            $script = $this->resolveSelectedScript();
+            /** @var PipelineStepService $service */
+            $service = app(PipelineStepService::class);
+            $run = $this->resolveCurrentRun($service);
 
-            if ($script === null) {
-                Notification::make()->title('No script available — run Step 3 first')->warning()->send();
+            $options = [
+                'script_id' => $this->selectedScriptId,
+                'formats' => $this->step5Formats,
+                'thumbnails' => $this->step5Thumbnails,
+                'backend' => $this->step6Backend,
+            ];
 
-                return;
-            }
-
-            $scenes = $script->scenes ?? [];
-            $scriptId = (int) $script->getKey();
-
-            /** @var ScenePropBuilder $propBuilder */
-            $propBuilder = app(ScenePropBuilder::class);
-            /** @var RemotionPropInjector $injector */
-            $injector = app(RemotionPropInjector::class);
-
-            $allProps = [];
-            foreach ($scenes as $index => $scene) {
-                $props = $propBuilder->buildProps($scriptId, $index, $scene);
-                $allProps[] = $props;
-            }
-
-            $payload = ['script_id' => $scriptId, 'scenes' => $scenes];
-            $injector->inject($payload, [
-                'assets' => array_merge(...array_map(fn ($p) => $p['assets'] ?? [], $allProps)),
-            ]);
-
-            if (class_exists(FanOutBatchService::class)) {
-                $fanOut = app(FanOutBatchService::class);
-                $render = Schema::hasTable('video_renders')
-                    ? VideoRender::query()->firstOrCreate(
-                        ['video_script_id' => $scriptId],
-                        ['template' => 'remotion', 'status' => 'completed', 'resolution' => '1080x1920', 'fps' => 30]
-                    )
-                    : null;
-                if ($render) {
-                    $fanOut->planFanOut((int) $render->getKey());
-                }
-            }
-
-            if (Schema::hasTable('metadata_variants')) {
-                foreach ($this->step5Formats as $fmt) {
-                    MetadataVariant::query()->firstOrCreate(
-                        ['video_script_id' => $scriptId, 'variant_key' => 'fmt_'.Str::slug($fmt)],
-                        [
-                            'title_text' => (string) $script->title,
-                            'description_text' => (string) ($script->narration ?? ''),
-                            'tags_json' => ['tech', 'ai', 'breaking', $fmt],
-                            'status' => 'ready',
-                        ]
-                    );
-                }
-            }
-
-            $log = "=== Step 5: Visual Scene Props & Multi-Format Fan-Out ===\n"
-                .'✓ Scene props injected for '.count($scenes)." scene(s)\n"
-                .'✓ Formats planned: '.implode(', ', $this->step5Formats)."\n"
-                ."✓ A/B Metadata variants and thumbnail plan created\n";
-
-            $this->recordStepComplete(5, $log, 6);
+            $result = $service->runStep5($options, $run, auth()->id());
+            $this->recordStepComplete(5, $result['log'], 6);
 
             Notification::make()
                 ->title('Step 5 Complete: Visuals & Multi-Formats Planned')
-                ->body(count($scenes).' scene props + '.implode(', ', $this->step5Formats).' format plans ready.')
+                ->body("{$result['artifacts']['scenes_count']} scene props + ".implode(', ', $this->step5Formats).' format plans ready.')
                 ->success()
                 ->send();
         } catch (Throwable $e) {
@@ -595,26 +673,48 @@ class PipelineRunnerPage extends Page
     {
         $this->assertAdmin();
 
-        config(['automation.publishing.enabled' => false]);
+        if ($this->runningStep !== null) {
+            Notification::make()
+                ->title('Step Already Active')
+                ->body("Step {$this->runningStep} is currently active. Please wait or cancel it before dispatching another step.")
+                ->warning()
+                ->send();
+
+            return;
+        }
 
         try {
-            Artisan::call('ai-pvg:verify-mp4', ['--execute' => true]);
-            $output = Artisan::output();
+            /** @var PipelineStepService $service */
+            $service = app(PipelineStepService::class);
+            $run = $this->resolveCurrentRun($service);
 
-            $log = "=== Step 6: Render Final MP4 Video Locally ===\n"
-                ."🔒 Zero external publishing enforced\n"
-                ."✓ Backend: {$this->step6Backend} ({$this->step6AspectRatio})\n"
-                ."✓ Remotion render completed\n"
-                ."✓ FFprobe duration and stream integrity verified\n\n"
-                .trim($output);
+            $options = [
+                'backend' => $this->step6Backend,
+                'aspect_ratio' => $this->step6AspectRatio,
+                'theme' => $this->step6Theme,
+                'script_id' => $this->selectedScriptId,
+            ];
 
-            $this->recordStepComplete(6, $log, 6);
-
-            Notification::make()
-                ->title('Step 6 Complete: Video Rendered Locally! 🎉')
-                ->body('Playable .mp4 verified and saved in storage/app/video_out/')
-                ->success()
-                ->send();
+            if (config('queue.default') === 'sync') {
+                $result = $service->runStep6($options, $run, auth()->id());
+                $this->recordStepComplete(6, $result['log'], 6);
+                Notification::make()
+                    ->title('Step 6 Complete: Video Rendered Locally! 🎉')
+                    ->body('Playable .mp4 verified and saved in storage/app/video_out/')
+                    ->success()
+                    ->send();
+            } else {
+                $stage = $service->dispatchStep(6, $options, $run, auth()->id());
+                $this->runningStep = 6;
+                $this->runningStageId = $stage->id;
+                $this->runningStatus = $stage->status;
+                $this->runningElapsed = $stage->elapsedSeconds();
+                Notification::make()
+                    ->title('Step 6 Dispatched (Queued)')
+                    ->body("Video render queued for execution via {$this->step6Backend}.")
+                    ->info()
+                    ->send();
+            }
         } catch (Throwable $e) {
             $this->lastOutput = '✗ Error in Step 6: '.$e->getMessage();
             Notification::make()->title('Step 6 Failed')->body($e->getMessage())->danger()->send();
@@ -651,11 +751,17 @@ class PipelineRunnerPage extends Page
         $this->completedSteps = [];
         $this->selectedClusterId = null;
         $this->selectedScriptId = null;
+        $this->clearRunningState();
+
+        if ($this->currentRunId && Schema::hasTable('pipeline_runs')) {
+            PipelineRun::query()->where('run_id', $this->currentRunId)->update(['status' => 'cancelled']);
+        }
+        $this->currentRunId = null;
         $this->lastOutput = "Wizard reset to Step 1.\nClick 'Run Step 1: Prepare & Load News' to begin.";
 
         Notification::make()
             ->title('Wizard Reset')
-            ->body('Pipeline studio reset to Step 1.')
+            ->body('Pipeline studio reset to Step 1. Production database rows remain untouched.')
             ->info()
             ->send();
     }
@@ -926,24 +1032,18 @@ class PipelineRunnerPage extends Page
         abort_unless(static::canAccess(), 403, 'Unauthorized');
     }
 
-    private function applyLocalPipelineSafety(): void
+    private function applyLocalPipelineSafety(): array
     {
-        config([
-            'automation.enabled' => true,
-            'automation.dry_run' => false,
-            'automation.triage.enabled' => true,
-            'automation.script_agents.enabled' => true,
-            'automation.publishing.enabled' => false,
+        /** @var PipelineStepService $service */
+        $service = app(PipelineStepService::class);
+        $flags = $service->applySafetyFlags([
+            'backend' => $this->step6Backend,
+            'enable_avatar' => false,
         ]);
 
-        if (Schema::hasTable('feature_flags')) {
-            FeatureFlag::setFlag('triage.news_scoring_enabled', true);
-            FeatureFlag::setFlag('script_agents.enabled', true);
-            FeatureFlag::setFlag('captions.enabled', true);
-            FeatureFlag::setFlag('assets.enabled', true);
-            FeatureFlag::setFlag('formats.enabled', true);
-            FeatureFlag::setFlag('publishing.enabled', false);
-        }
+        $this->appliedFlagsSummary = implode(', ', array_map(fn ($k, $v) => "{$k}=".($v ? 'true' : 'false'), array_keys($flags), array_values($flags)));
+
+        return $flags;
     }
 
     private function recordStepComplete(int $step, string $log, int $nextStep): void

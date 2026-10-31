@@ -238,6 +238,7 @@ class PipelineRunnerPageTest extends TestCase
             ->andReturn('MP4 rendered and verified.');
 
         Livewire::test(PipelineRunnerPage::class)
+            ->set('step6Backend', 'remotion')
             ->set('currentStep', 6)
             ->call('runStep6')
             ->assertSet('completedSteps', [6])
@@ -350,6 +351,7 @@ class PipelineRunnerPageTest extends TestCase
         $script = VideoScript::factory()->create(['news_id' => $news->getKey()]);
 
         $test = Livewire::test(PipelineRunnerPage::class)
+            ->set('step6Backend', 'remotion')
             ->assertSet('currentStep', 1)
             ->assertSet('completedSteps', [])
             // Step 1
