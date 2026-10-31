@@ -1,12 +1,12 @@
 import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
-import { useCurrentFrame, interpolate, AbsoluteFill, Sequence, Audio, useVideoConfig, } from 'remotion';
+import { useCurrentFrame, interpolate, AbsoluteFill, Sequence, Audio, staticFile, useVideoConfig, } from 'remotion';
 const TRANSITION_FRAMES = 18;
 const THEMES = {
     breaking: { bg: '#05070a', accent: '#ff4d6d', glow: '#ff6b81', panel: 'rgba(255,255,255,0.08)', textDim: 'rgba(255,255,255,0.85)' },
     minimal: { bg: '#ffffff', accent: '#0ea5e9', glow: '#38bdf8', panel: 'rgba(0,0,0,0.05)', textDim: 'rgba(0,0,0,0.7)' },
     cyber: { bg: '#0a0c12', accent: '#00d4ff', glow: '#00f0ff', panel: 'rgba(255,255,255,0.08)', textDim: 'rgba(255,255,255,0.9)' },
 };
-export const VideoScript = ({ scenes, title, language, targetDuration, template = 'cyber', audioUrl, captionTrack, visualAssets, }) => {
+export const VideoScript = ({ scenes, title, language, targetDuration, template = 'cyber', audioUrl, audioTimeline, captionTrack, visualAssets, }) => {
     const frame = useCurrentFrame();
     const { width, height, fps } = useVideoConfig();
     const isRTL = language === 'ar';
@@ -35,7 +35,9 @@ export const VideoScript = ({ scenes, title, language, targetDuration, template 
             fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
             direction: isRTL ? 'rtl' : 'ltr',
             overflow: 'hidden',
-        }, children: [_jsx(HeaderStrip, { title: title, category: sorted[0]?.category ?? 'Breaking', progress: progress, theme: theme, isRTL: isRTL }), audioUrl && _jsx(Audio, { src: audioUrl, volume: 1, startFrom: 0 }), sorted.map((scene, idx) => {
+        }, children: [_jsx(HeaderStrip, { title: title, category: sorted[0]?.category ?? 'Breaking', progress: progress, theme: theme, isRTL: isRTL }), audioUrl && (_jsx(Sequence, { from: 0, durationInFrames: Math.max(1, Math.round((audioTimeline?.total_duration || targetDuration || cumulative / fp) * fp)), children: _jsx(Audio, { src: audioUrl.startsWith('http') || audioUrl.startsWith('data:')
+                        ? audioUrl
+                        : staticFile(audioUrl.replace(/^\/?public\/?/, '')), volume: 1 }) })), sorted.map((scene, idx) => {
                 const startFrame = sceneStarts[idx];
                 const sceneDurSec = scene.duration || (targetDuration / Math.max(sorted.length, 1));
                 const sceneDurFrames = Math.max(Math.round(sceneDurSec * fp), 45);
@@ -171,7 +173,7 @@ function ActiveScene({ scene, sceneIndex, totalScenes, startFrame, durationSec, 
                             background: theme.accent,
                             boxShadow: `0 0 16px ${theme.accent}`,
                             animation: 'pulse 2s ease-in-out infinite',
-                        } }), typeLabel, _jsxs("span", { style: { opacity: 0.6, fontSize: 11, fontWeight: 700 }, children: ["\uFFFD ", durationSec, "s"] })] }), _jsxs("div", { style: {
+                        } }), typeLabel, _jsxs("span", { style: { opacity: 0.6, fontSize: 11, fontWeight: 700 }, children: ["\u2022 ", durationSec, "s"] })] }), _jsxs("div", { style: {
                     position: 'absolute',
                     top: 120,
                     right: isRTL ? 60 : 'auto',
@@ -273,7 +275,7 @@ function ActiveScene({ scene, sceneIndex, totalScenes, startFrame, durationSec, 
                             letterSpacing: 0.12,
                             textTransform: 'uppercase',
                             color: 'rgba(255,255,255,0.6)',
-                        }, children: [_jsx("span", { style: { width: 6, height: 6, borderRadius: '50%', background: theme.accent } }), "Source: ", scene.source, scene.sourceUrl && (_jsxs("span", { style: { fontSize: 12, fontWeight: 600, opacity: 0.7 }, children: ["\uFFFD ", new URL(scene.sourceUrl).hostname] }))] }))] }), captionTrack && captionTrack.wordTimings && captionTrack.wordTimings.length > 0 && (_jsx(KaraokeCaptions, { wordTimings: captionTrack.wordTimings, frame: frame, startFrame: startFrame, durationSec: durationSec, fp: fp, isRTL: isRTL, theme: theme, language: captionTrack.language, source: captionTrack.source }))] }));
+                        }, children: [_jsx("span", { style: { width: 6, height: 6, borderRadius: '50%', background: theme.accent } }), "Source: ", scene.source, scene.sourceUrl && (_jsxs("span", { style: { fontSize: 12, fontWeight: 600, opacity: 0.7 }, children: ["\u2022 ", new URL(scene.sourceUrl).hostname] }))] }))] }), captionTrack && captionTrack.wordTimings && captionTrack.wordTimings.length > 0 && (_jsx(KaraokeCaptions, { wordTimings: captionTrack.wordTimings, frame: frame, startFrame: startFrame, durationSec: durationSec, fp: fp, isRTL: isRTL, theme: theme, language: captionTrack.language, source: captionTrack.source }))] }));
 }
 function KaraokeCaptions({ wordTimings, frame, startFrame, durationSec, fp, isRTL, theme, language, source, }) {
     const relativeSec = (frame - startFrame) / fp;
@@ -314,7 +316,7 @@ function KaraokeCaptions({ wordTimings, frame, startFrame, durationSec, fp, isRT
                     textTransform: 'uppercase',
                     letterSpacing: 0.2,
                     textAlign: 'center',
-                }, children: [(source === 'verified' ? 'Verified' : 'Estimated'), " transcript \uFFFD ", (language ?? 'en').toUpperCase()] }), _jsx("div", { style: {
+                }, children: [(source === 'verified' ? 'Verified' : 'Estimated'), " transcript \u2022 ", (language ?? 'en').toUpperCase()] }), _jsx("div", { style: {
                     fontSize: 30,
                     fontWeight: 700,
                     lineHeight: 1.7,
@@ -348,7 +350,7 @@ function FooterStrip({ title, language, targetDuration, isRTL, theme }) {
                     color: 'rgba(255,255,255,0.6)',
                     letterSpacing: 0.18,
                     textTransform: 'uppercase',
-                }, children: [language.toUpperCase(), " \uFFFD ", targetDuration, "s \uFFFD AI-PVG"] })] }));
+                }, children: [language.toUpperCase(), " \u2022 ", targetDuration, "s \u2022 AI-PVG"] })] }));
 }
 function hexToRgb(hex) {
     const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);

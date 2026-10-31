@@ -18,9 +18,16 @@ class EditPlanValidator
         '1:1' => [1080, 1080],
     ];
 
-    public const CAMERA_MOVES = ['push-in', 'push-out', 'pan-left', 'pan-right', 'drift-up', 'parallax'];
+    public const CAMERA_MOVES = [
+        'push-in', 'push-out', 'pan-left', 'pan-right', 'drift-up', 'parallax',
+        'push_in', 'push_out', 'pan_left', 'pan_right', 'drift_up',
+        'slow-pan-left', 'slow_pan_left', 'whip-pan', 'whip_pan', 'static-macro', 'static_macro',
+    ];
 
-    public const CAPTION_STYLES = ['word-pop', 'word-highlight', 'line-reveal'];
+    public const CAPTION_STYLES = [
+        'word-pop', 'word-highlight', 'line-reveal',
+        'bold-snap', 'bold_snap', 'karaoke-pill', 'karaoke_pill', 'editorial-serif', 'editorial_serif',
+    ];
 
     public const PURPOSE = ['hook', 'context', 'evidence', 'payoff', 'cta'];
 

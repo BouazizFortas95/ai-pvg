@@ -5,6 +5,7 @@ import {
   AbsoluteFill,
   Sequence,
   Audio,
+  staticFile,
   useVideoConfig,
 } from 'remotion';
 import React from 'react';
@@ -61,6 +62,11 @@ type VideoScriptProps = {
   targetDuration: number;
   template?: string;
   audioUrl?: string;
+  audioTimeline?: {
+    total_duration: number;
+    narration?: Array<{ start: number; end: number; duration: number }>;
+    music?: { start: number; end: number };
+  };
   captionTrack?: CaptionTrack;
   visualAssets?: VisualAsset[] | null;
 };
@@ -80,6 +86,7 @@ export const VideoScript: React.FC<VideoScriptProps> = ({
   targetDuration,
   template = 'cyber',
   audioUrl,
+  audioTimeline,
   captionTrack,
   visualAssets,
 }) => {
@@ -130,7 +137,21 @@ export const VideoScript: React.FC<VideoScriptProps> = ({
         isRTL={isRTL}
       />
 
-      {audioUrl && <Audio src={audioUrl} volume={1} startFrom={0} />}
+      {audioUrl && (
+        <Sequence
+          from={0}
+          durationInFrames={Math.max(1, Math.round((audioTimeline?.total_duration || targetDuration || cumulative / fp) * fp))}
+        >
+          <Audio
+            src={
+              audioUrl.startsWith('http') || audioUrl.startsWith('data:')
+                ? audioUrl
+                : staticFile(audioUrl.replace(/^\/?public\/?/, ''))
+            }
+            volume={1}
+          />
+        </Sequence>
+      )}
 
       {sorted.map((scene, idx) => {
         const startFrame = sceneStarts[idx];
@@ -380,7 +401,7 @@ function ActiveScene({
           }}
         />
         {typeLabel}
-        <span style={{ opacity: 0.6, fontSize: 11, fontWeight: 700 }}>• {durationSec}s</span>
+        <span style={{ opacity: 0.6, fontSize: 11, fontWeight: 700 }}>â€¢ {durationSec}s</span>
       </div>
 
       <div
@@ -558,7 +579,7 @@ function ActiveScene({
             Source: {scene.source}
             {scene.sourceUrl && (
               <span style={{ fontSize: 12, fontWeight: 600, opacity: 0.7 }}>
-                • {new URL(scene.sourceUrl).hostname}
+                â€¢ {new URL(scene.sourceUrl).hostname}
               </span>
             )}
           </div>
@@ -660,7 +681,7 @@ function KaraokeCaptions({
           textAlign: 'center',
         }}
       >
-        {(source === 'verified' ? 'Verified' : 'Estimated')} transcript • {(language ?? 'en').toUpperCase()}
+        {(source === 'verified' ? 'Verified' : 'Estimated')} transcript â€¢ {(language ?? 'en').toUpperCase()}
       </div>
       <div
         style={{
@@ -724,7 +745,7 @@ function FooterStrip({ title, language, targetDuration, isRTL, theme }: {
           textTransform: 'uppercase',
         }}
       >
-        {language.toUpperCase()} • {targetDuration}s • AI-PVG
+        {language.toUpperCase()} â€¢ {targetDuration}s â€¢ AI-PVG
       </div>
     </div>
   );

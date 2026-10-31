@@ -37,7 +37,7 @@ class TranscriptionService
         $base = explode('-', $language)[0];
         $command = [
             ...HyperFramesRuntime::commandPrefix(),
-            $cli, 'transcribe', $audioPath,
+            'transcribe', $audioPath,
             '--language', $base,
             '--json',
             '--optional',

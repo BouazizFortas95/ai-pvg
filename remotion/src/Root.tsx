@@ -1,4 +1,4 @@
-﻿import { Composition } from 'remotion';
+import { Composition } from 'remotion';
 import { VideoScript } from './VideoScript';
 
 export const Root: React.FC = () => (
@@ -17,7 +17,10 @@ export const Root: React.FC = () => (
     }}
     calculateMetadata={({ props }) => {
       const scenes = props.scenes || [];
-      const totalSec = scenes.reduce((acc, s) => acc + (s.duration || 5), 0);
+      const timelineDuration = props.audioTimeline?.total_duration || props.targetDuration;
+      const totalSec = timelineDuration && timelineDuration > 0
+        ? Number(timelineDuration)
+        : scenes.reduce((acc: number, s: any) => acc + (s.duration || 5), 0);
       return {
         durationInFrames: Math.max(1, Math.round(totalSec * 30)),
         width: 1080,

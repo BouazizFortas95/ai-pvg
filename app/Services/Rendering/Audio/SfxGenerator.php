@@ -24,23 +24,39 @@ class SfxGenerator
             throw new AudioPipelineException('FFmpeg is required to generate SFX.');
         }
 
-        [$source, $duration, $filter] = match ($cue) {
+        $normalized = str_replace('-', '_', strtolower(trim($cue)));
+
+        [$source, $duration, $filter] = match ($normalized) {
             'whoosh' => [
                 'anoisesrc=color=white:seed=7:duration=0.45:amplitude=0.55',
                 0.45,
                 'highpass=f=250,lowpass=f=7000,afade=t=in:st=0:d=0.06,afade=t=out:st=0.28:d=0.17,volume=0.7',
             ],
-            'hit' => [
-                'aevalsrc=0.65*sin(2*PI*72*t)*exp(-22*t)+0.22*sin(2*PI*190*t)*exp(-38*t):s=48000:d=0.28',
-                0.28,
-                'afade=t=out:st=0.12:d=0.16,volume=0.9',
+            'hit', 'impact' => [
+                'aevalsrc=0.75*sin(2*PI*55*t)*exp(-18*t)+0.3*sin(2*PI*120*t)*exp(-25*t):s=48000:d=0.35',
+                0.35,
+                'afade=t=out:st=0.15:d=0.20,volume=0.9',
             ],
             'riser' => [
                 'aevalsrc=0.28*sin(2*PI*(160*t+380*t*t))*exp(-0.35*t):s=48000:d=0.95',
                 0.95,
                 'afade=t=in:st=0:d=0.12,afade=t=out:st=0.55:d=0.4,volume=0.65',
             ],
-            default => throw new AudioPipelineException('Unknown SFX cue: '.$cue),
+            'sub_drop' => [
+                'aevalsrc=0.8*sin(2*PI*(90-50*t)*t)*exp(-1.2*t):s=48000:d=0.75',
+                0.75,
+                'afade=t=in:st=0:d=0.04,afade=t=out:st=0.45:d=0.30,volume=0.85',
+            ],
+            'snap', 'click' => [
+                'aevalsrc=0.6*sin(2*PI*1200*t)*exp(-80*t):s=48000:d=0.12',
+                0.12,
+                'afade=t=out:st=0.04:d=0.08,volume=0.75',
+            ],
+            default => [
+                'aevalsrc=0.65*sin(2*PI*72*t)*exp(-22*t)+0.22*sin(2*PI*190*t)*exp(-38*t):s=48000:d=0.28',
+                0.28,
+                'afade=t=out:st=0.12:d=0.16,volume=0.9',
+            ],
         };
 
         File::ensureDirectoryExists(dirname($outputPath));

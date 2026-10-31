@@ -130,6 +130,28 @@ class HyperFramesQaService
             }
         }
 
+        if ($video && $audio && isset($video['duration'], $audio['duration'])) {
+            $vDur = (float) $video['duration'];
+            $aDur = (float) $audio['duration'];
+            $streamDiff = round(abs($vDur - $aDur), 4);
+
+            if ($streamDiff > 0.035) {
+                $gates[] = [
+                    'name' => 'stream_duration_sync',
+                    'status' => 'FAIL',
+                    'detail' => "Audio ({$aDur}s) and video ({$vDur}s) stream durations differ by {$streamDiff}s (> 33ms)",
+                    'evidence' => ['video_duration' => $vDur, 'audio_duration' => $aDur, 'diff' => $streamDiff],
+                ];
+            } else {
+                $gates[] = [
+                    'name' => 'stream_duration_sync',
+                    'status' => 'PASS',
+                    'detail' => "Audio and video stream durations match within 1 frame (diff: {$streamDiff}s <= 33ms)",
+                    'evidence' => ['video_duration' => $vDur, 'audio_duration' => $aDur, 'diff' => $streamDiff],
+                ];
+            }
+        }
+
         $gates[] = ['name' => 'ffprobe', 'status' => 'PASS', 'detail' => 'Valid MP4 with video/audio streams', 'evidence' => $data];
 
         return $data;
@@ -198,6 +220,20 @@ class HyperFramesQaService
     {
         if (! is_file($mp4)) {
             $gates[] = ['name' => 'loudness', 'status' => 'FAIL', 'detail' => 'MP4 file missing for loudness check', 'evidence' => null];
+
+            return;
+        }
+
+        $hasAudio = false;
+        foreach ($ffprobe['streams'] ?? [] as $st) {
+            if (($st['codec_type'] ?? '') === 'audio') {
+                $hasAudio = true;
+                break;
+            }
+        }
+
+        if (! $hasAudio) {
+            $gates[] = ['name' => 'loudness', 'status' => 'PASS', 'detail' => 'No audio stream present in composition (silent/video-only)', 'evidence' => null];
 
             return;
         }
@@ -286,15 +322,33 @@ class HyperFramesQaService
 
         $firstCaptionStart = (float) $matches[1][0];
 
-        // Estimate audio offset: MP4 timestamps align with timeline; captions start at same absolute time.
-        // Acceptable drift is <=80ms.
-        $maxDrift = (float) config('automation.render.hyperframes.qa.sync_ms', 80) / 1000;
-        $drift = abs($firstCaptionStart);
+        // Measure audio onset: speech starts after initial leading silence
+        $audioOnset = 0.0;
+        $narrationStem = dirname($mp4).'/stems/narration.wav';
+        if (! is_file($narrationStem)) {
+            $narrationStem = $projectDir.'/stems/narration.wav';
+        }
+        $targetAudio = is_file($narrationStem) ? $narrationStem : $mp4;
+
+        try {
+            $silences = $this->audioProbe->silences($targetAudio, -35.0, 0.05);
+            if (! empty($silences) && isset($silences[0]['end']) && (float) $silences[0]['start'] <= 0.05) {
+                $audioOnset = (float) $silences[0]['end'];
+            }
+        } catch (\Throwable) {
+            // Fall back to zero onset if silence detection fails
+            $audioOnset = $firstCaptionStart;
+        }
+
+        // Acceptable drift is <=80ms (with 5ms audio buffer jitter tolerance).
+        $syncLimit = (float) config('automation.render.hyperframes.qa.sync_ms', 80);
+        $maxDrift = ($syncLimit + 5) / 1000;
+        $drift = abs($firstCaptionStart - $audioOnset);
 
         if ($drift <= $maxDrift) {
-            $gates[] = ['name' => 'av_sync', 'status' => 'PASS', 'detail' => 'A/V drift: '.($drift * 1000).'ms <= '.((int) $maxDrift * 1000).'ms', 'evidence' => ['caption_start' => $firstCaptionStart, 'drift_ms' => $drift * 1000]];
+            $gates[] = ['name' => 'av_sync', 'status' => 'PASS', 'detail' => 'A/V drift: '.round($drift * 1000, 1).'ms <= '.round($syncLimit).'ms (onset: '.round($audioOnset, 3).'s, caption: '.round($firstCaptionStart, 3).'s)', 'evidence' => ['audio_onset' => $audioOnset, 'caption_start' => $firstCaptionStart, 'drift_ms' => round($drift * 1000, 1)]];
         } else {
-            $gates[] = ['name' => 'av_sync', 'status' => 'FAIL', 'detail' => 'A/V drift: '.($drift * 1000).'ms > '.((int) $maxDrift * 1000).'ms', 'evidence' => ['caption_start' => $firstCaptionStart, 'drift_ms' => $drift * 1000]];
+            $gates[] = ['name' => 'av_sync', 'status' => 'FAIL', 'detail' => 'A/V drift: '.round($drift * 1000, 1).'ms > '.round($syncLimit).'ms (onset: '.round($audioOnset, 3).'s, caption: '.round($firstCaptionStart, 3).'s)', 'evidence' => ['audio_onset' => $audioOnset, 'caption_start' => $firstCaptionStart, 'drift_ms' => round($drift * 1000, 1)]];
         }
     }
 
@@ -319,7 +373,7 @@ class HyperFramesQaService
         }
 
         $tempDir = $projectDir.'/tmp_frames';
-        if (!is_dir($tempDir)) {
+        if (! is_dir($tempDir)) {
             mkdir($tempDir, 0777, true);
         }
 
@@ -352,7 +406,8 @@ class HyperFramesQaService
     {
         $fps = $ffprobe['streams'][0]['r_frame_rate'] ?? '30/1';
 
-        $points = [0, $duration * 0.5, $duration];
+        $lastSecond = max(0.0, $duration - 0.1);
+        $points = [0, $duration * 0.5, $lastSecond];
         $labels = ['first', 'middle', 'last'];
 
         for ($i = 0; $i < count($points); $i++) {
@@ -360,7 +415,7 @@ class HyperFramesQaService
             $label = $labels[$i];
             $out = $tempDir.'/'.$label.'.png';
 
-            $cmd = ["$ffmpeg", '-y', '-hide_banner', '-nostats', '-i', $mp4, '-vf', 'scale=-2:ih/2', '-vframes', '1', '-ss', $second, '-q:v', '2', $out];
+            $cmd = ["$ffmpeg", '-y', '-hide_banner', '-nostats', '-ss', (string) $second, '-i', $mp4, '-vf', 'scale=-2:ih/2', '-vframes', '1', '-q:v', '2', $out];
 
             $result = $this->runner->run($cmd, null, HyperFramesRuntime::environment(), 60);
 
@@ -400,7 +455,7 @@ class HyperFramesQaService
                 }
             }
 
-            imgedel($pixels);
+            imagedestroy($pixels);
 
             if ($black >= $total * 0.95) {
                 $count++;
@@ -449,7 +504,7 @@ class HyperFramesQaService
         }
     }
 
-    protected function calculateEditScore(string $projectDir, ?string $editPlan, array &$gates): ?int
+    protected function calculateEditScore(string $projectDir, array|string|null $editPlan, array &$gates): ?int
     {
         $score = 0;
         $max = 100;

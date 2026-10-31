@@ -79,6 +79,7 @@ class AudioMixer
             $finalMix,
             (float) config('automation.render.hyperframes.audio.target_lufs', -14),
             (float) config('automation.render.hyperframes.audio.true_peak', -1.5),
+            $duration,
         );
 
         File::delete($rawMix);
@@ -180,7 +181,7 @@ class AudioMixer
      *
      * @return array<string, mixed>
      */
-    public function normalize(string $input, string $output, float $targetLufs, float $truePeak): array
+    public function normalize(string $input, string $output, float $targetLufs, float $truePeak, ?float $duration = null): array
     {
         $ffmpeg = HyperFramesRuntime::ffmpegPath();
 
@@ -208,6 +209,10 @@ class AudioMixer
         }
 
         $secondFilter .= ',aresample=48000,aformat=channel_layouts=stereo';
+
+        if ($duration !== null && $duration > 0) {
+            $secondFilter .= ',atrim=0:'.$this->fmt($duration).',apad=whole_dur='.$this->fmt($duration);
+        }
 
         $second = $this->runner->run([
             $ffmpeg, '-y', '-hide_banner', '-nostats', '-i', $input,

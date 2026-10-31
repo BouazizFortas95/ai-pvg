@@ -101,7 +101,7 @@ class EditPlanBuilder
         $durations = [];
 
         foreach ($scenes as $index => $scene) {
-            $durations[$index] = $this->sceneDuration($scene, $input['target_duration'], $sceneCount);
+            $durations[$index] = $this->sceneDuration($scene, $input['target_duration'], $sceneCount, $index);
         }
 
         $planScenes = [];
@@ -153,7 +153,8 @@ class EditPlanBuilder
             // No need to add separate transition beats
 
             $visual = $this->visual($index, $scene, $assetMap, $themeName);
-            $camera = $this->camera($index);
+            $camera = $this->camera($index, $purpose);
+            $captionStyle = $this->captionStyle($purpose, $index);
             $sfx = $this->sfx($index, $sceneCount, $start, $duration, $purpose);
 
             $planScenes[] = [
@@ -171,7 +172,7 @@ class EditPlanBuilder
                 'visual' => $visual,
                 'camera' => $camera,
                 'transition_in' => $transition,
-                'caption_style' => 'word-pop',
+                'caption_style' => $captionStyle,
                 'sfx' => $sfx,
                 'music_intensity' => $this->musicIntensity($purpose),
                 'beats' => $beats,
@@ -215,7 +216,7 @@ class EditPlanBuilder
     /**
      * @param  array<string, mixed>  $scene
      */
-    private function sceneDuration(array $scene, float $targetDuration, int $sceneCount): float
+    private function sceneDuration(array $scene, float $targetDuration, int $sceneCount, int $index = 0): float
     {
         $explicit = $scene['duration'] ?? null;
 
@@ -231,11 +232,20 @@ class EditPlanBuilder
 
         $words = max(1, str_word_count($text));
 
-        if ($text === '') {
-            return $targetDuration > 0 ? max(2.0, min(4.5, $targetDuration / $sceneCount)) : 3.5;
+        // Hook (index 0): punchy 2.1–2.5s; Kicker/CTA (last): 2.2–2.7s; Body: 3.2–4.3s
+        if ($index === 0) {
+            return max(2.1, min(2.5, round($words * 0.28 + 0.8, 1)));
         }
 
-        return max(2.6, min(4.4, round($words * 0.37 + 0.7, 1)));
+        if ($index === $sceneCount - 1) {
+            return max(2.2, min(2.8, round($words * 0.30 + 0.9, 1)));
+        }
+
+        if ($text === '') {
+            return $targetDuration > 0 ? max(2.8, min(4.3, $targetDuration / $sceneCount)) : 3.5;
+        }
+
+        return max(2.8, min(4.4, round($words * 0.38 + 0.8, 1)));
     }
 
     private function purpose(int $index, int $sceneCount): string
@@ -253,6 +263,15 @@ class EditPlanBuilder
         }
 
         return $index === 1 ? 'context' : 'evidence';
+    }
+
+    private function captionStyle(string $purpose, int $index): string
+    {
+        return match ($purpose) {
+            'hook' => 'bold_snap',
+            'payoff', 'cta' => 'editorial_serif',
+            default => 'karaoke_pill',
+        };
     }
 
     /**
@@ -284,35 +303,49 @@ class EditPlanBuilder
     /**
      * @return array{type: string, intensity: float}
      */
-    private function camera(int $index): array
+    private function camera(int $index, string $purpose = 'context'): array
     {
-        $moves = ['push-in', 'pan-right', 'push-out', 'pan-left', 'parallax', 'drift-up'];
-
-        return [
-            'type' => $moves[$index % count($moves)],
-            'intensity' => round(0.8 + (($index % 3) * 0.15), 2),
-        ];
+        return match ($purpose) {
+            'hook' => ['type' => 'push_in', 'intensity' => 1.25],
+            'payoff' => ['type' => 'whip_pan', 'intensity' => 1.40],
+            'cta' => ['type' => 'static_macro', 'intensity' => 0.85],
+            default => [
+                'type' => ['slow_pan_left', 'push_in', 'parallax', 'whip_pan'][$index % 4],
+                'intensity' => round(0.85 + (($index % 3) * 0.15), 2),
+            ],
+        };
     }
 
     /**
+     * Sound cues tied to visual moments:
+     * - riser at hook
+     * - whoosh at cut
+     * - sub_drop at punchline/payoff
+     * - impact at kicker
+     *
      * @return list<array{cue: string, time: float, gain: float}>
      */
     private function sfx(int $index, int $sceneCount, float $start, float $duration, string $purpose): array
     {
         $cues = [];
 
-        if ($index > 0) {
-            $cues[] = ['cue' => 'whoosh', 'time' => $start, 'gain' => 0.5];
+        if ($index === 0) {
+            // Riser tied to hook reveal
+            $cues[] = ['cue' => 'riser', 'time' => round($start + 0.05, 3), 'gain' => 0.38];
+        } else {
+            // Whoosh on every transition cut
+            $cues[] = ['cue' => 'whoosh', 'time' => $start, 'gain' => 0.48];
         }
-
-        $cues[] = ['cue' => 'hit', 'time' => round($start + 0.28, 3), 'gain' => 0.28];
 
         if ($purpose === 'payoff') {
-            $cues[] = ['cue' => 'riser', 'time' => round(max(0, $start - 0.5), 3), 'gain' => 0.32];
-        }
-
-        if ($index === $sceneCount - 1) {
-            $cues[] = ['cue' => 'hit', 'time' => round($start + max(0.3, $duration - 0.9), 3), 'gain' => 0.22];
+            // Sub-drop on punchline / payoff reveal
+            $cues[] = ['cue' => 'sub_drop', 'time' => round($start + 0.22, 3), 'gain' => 0.42];
+        } elseif ($index === $sceneCount - 1) {
+            // Impact hit on kicker / CTA
+            $cues[] = ['cue' => 'impact', 'time' => round($start + 0.18, 3), 'gain' => 0.36];
+        } else {
+            // Subtle rhythmic sync hit
+            $cues[] = ['cue' => 'hit', 'time' => round($start + 0.25, 3), 'gain' => 0.24];
         }
 
         return $cues;

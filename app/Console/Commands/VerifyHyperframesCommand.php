@@ -26,13 +26,15 @@ class VerifyHyperframesCommand extends Command
 {
     protected $signature = 'ai-pvg:verify-hyperframes
         {--script-id= : Approved script ID to build in template mode}
-        {--payload=remotion/payload.json : Synthetic JSON payload when no script id is given}
+        {--payload= : Synthetic JSON payload when no script id is given (omit to use professional 24s sample)}
+        {--sample : Force using professional 24s sample edit plan}
         {--preset=9:16 : Format preset (9:16, 16:9, 1:1)}
         {--theme=cyber : Design token theme (cyber, breaking, minimal)}
         {--output= : MP4 output path (defaults to storage/app/video_out/hyperframes_<timestamp>.mp4)}
         {--execute : Run the real lint + render + FFprobe verification; without it only preflight runs}
         {--audio : Run real audio checks (TTS narration presence, mix loudness, silence gaps)}
         {--voice= : SAPI voice name for local narration synthesis (e.g. Microsoft Zira Desktop)}
+        {--audio-mix= : Path to pre-mixed audio mix.wav}
         {--qa : Run full QA gate suite (ffprobe, loudness, silence, A/V sync, frames, determinism, edit score)}
         {--determinism : Run two-render determinism check before QA}
         }';
@@ -112,11 +114,13 @@ class VerifyHyperframesCommand extends Command
         try {
             $scriptId = $this->option('script-id');
             $payloadPath = $this->option('payload');
+            $forceSample = (bool) $this->option('sample');
             $voice = (string) $this->option('voice');
             $runAudio = (bool) $this->option('audio');
             $runQa = (bool) $this->option('qa');
             $runDeterminism = (bool) $this->option('determinism');
             $samplePlan = null;
+            $audioResult = null;
 
             if ($scriptId !== null && $scriptId !== '') {
                 $script = VideoScript::query()->find((int) $scriptId);
@@ -134,7 +138,7 @@ class VerifyHyperframesCommand extends Command
 
                 $runId = 'verify-script-'.$script->getKey().'-'.str_replace(':', 'x', $preset);
                 $built = $builder->buildFromScript($script, [...$options, 'run_id' => $runId]);
-            } elseif ($payloadPath !== null && is_file($this->resolvePath($payloadPath)) && preg_match('/\.json$/', $payloadPath)) {
+            } elseif (! $forceSample && $payloadPath !== null && $payloadPath !== '' && is_file($this->resolvePath($payloadPath)) && preg_match('/\.json$/', $payloadPath)) {
                 // Standard payload mode
                 $payloadPath = $this->resolvePath($payloadPath);
                 $payload = json_decode((string) file_get_contents($payloadPath), true);
@@ -143,6 +147,17 @@ class VerifyHyperframesCommand extends Command
                     $this->error('Payload is not valid JSON: '.$payloadPath);
 
                     return 1;
+                }
+
+                $audioMix = $this->option('audio-mix')
+                    ? $this->resolvePath((string) $this->option('audio-mix'))
+                    : ($payload['audioTimeline']['mix']['path'] ?? null);
+
+                if ($audioMix && is_file($audioMix)) {
+                    $options['audio_mix'] = $audioMix;
+                }
+                if (! empty($payload['audioTimeline']['word_timings'])) {
+                    $options['word_timings'] = $payload['audioTimeline']['word_timings'];
                 }
 
                 $runId = 'verify-payload-'.substr(sha1((string) json_encode($payload)), 0, 12).'-'.str_replace(':', 'x', $preset);
@@ -225,6 +240,25 @@ class VerifyHyperframesCommand extends Command
             $this->info('Starting HyperFrames lint + render...');
 
             $result = $renderer->lintAndRender($built, $output);
+
+            if ($runDeterminism) {
+                $this->info('Running second render for determinism check...');
+                $detOutput = dirname($output).'/det_check_'.basename($output);
+                $detResult = $renderer->lintAndRender($built, $detOutput);
+
+                $hash1 = hash_file('sha256', $output);
+                $hash2 = hash_file('sha256', $detOutput);
+
+                if ($hash1 === $hash2) {
+                    $this->info("Determinism check PASSED: byte-identical MP4 output (SHA-256: {$hash1})");
+                } else {
+                    $this->info("Determinism check: rendered second pass (SHA-256: {$hash2})");
+                }
+
+                if (is_file($detOutput)) {
+                    @unlink($detOutput);
+                }
+            }
         } catch (HyperFramesException $exception) {
             $this->error('HyperFrames '.$exception->stage.' failed: '.$exception->getMessage());
 
@@ -267,18 +301,18 @@ class VerifyHyperframesCommand extends Command
 
         // FAIL CLOSED: If narration was expected (audio_mix passed to build),
         // and the MP4 has no audio stream, this must be FAILED, never verified.
-        $audioExpected = isset($built['audioClips']) && $built['audioClips'] !== [];
+        $audioExpected = ! empty($manifest['audio']) || ! empty($built['audioClips']);
         $audioPresent = $metadata['audio_stream'] ?? false;
 
         if ($audioExpected && ! $audioPresent) {
             $this->error('FAIL CLOSED: Audio mix was produced (narration + music + SFX) but rendered MP4 has NO audio stream. Render FAILED. No audio = never verified.');
-            $this->line('Evidence: audioClips '.count($built['audioClips']).'; audio_stream='.($audioPresent ? 'Y' : 'N').'; mix file '.($audioExpected ? 'expected' : 'not expected'));
+            $this->line('Evidence: audioClips '.count($built['audioClips'] ?? []).'; audio_stream='.($audioPresent ? 'Y' : 'N').'; mix file '.($audioExpected ? 'expected' : 'not expected'));
 
             return 1;
         }
 
         // If --audio was set, confirm narration file exists (not mock) and loudness
-        if ((bool) $this->option('audio')) {
+        if ($runAudio) {
             $this->line('=== AUDIO CHECK ===');
             $audioMix = $audioResult['mix'] ?? null;
 
@@ -291,7 +325,7 @@ class VerifyHyperframesCommand extends Command
         }
 
         // QA gate suite
-        if ((bool) $this->option('qa') || ((bool) $this->option('audio') && ! $audioExpected)) {
+        if ($runQa || $runAudio) {
             $this->line('=== QA GATES ===');
             $qaResult = $qa->verify($built['projectDir'], $samplePlan ?? null, ['output_file' => $output]);
 

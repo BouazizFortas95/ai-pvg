@@ -126,7 +126,7 @@ class TtsGenerator
 
         $command = [
             ...HyperFramesRuntime::commandPrefix(),
-            $cli, 'tts', $textFile,
+            'tts', $textFile,
             '--voice', $voice,
             '--lang', $lang,
             '--output', $outputPath,

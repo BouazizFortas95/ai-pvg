@@ -2,11 +2,14 @@
 
 namespace App\Services\Rendering;
 
+use App\Models\AudioAsset;
 use App\Models\CaptionTrack;
+use App\Models\SceneAsset;
 use App\Models\VideoScript;
 use App\Services\Rendering\EditPlan\EditPlanValidator;
 use App\Support\HyperFramesRuntime;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Schema;
 use RuntimeException;
 
 /**
@@ -55,24 +58,58 @@ class HyperFramesCompositionBuilder
     {
         (new EditPlanValidator)->assertValid($plan);
 
-        return $this->buildFromPayload([
-            'title' => $plan['title'] ?? 'Plan',
-            'language' => $plan['language'] ?? 'en',
-            'scenes' => $plan['scenes'] ?? [],
-            'target_duration' => $plan['duration'] ?? 0,
-        ], $options);
+        $scenes = $this->normalizeScenes($plan['scenes'] ?? [], (float) ($plan['duration'] ?? 24));
+
+        $audio = [];
+        if (! empty($options['audio_mix']) && is_file($options['audio_mix'])) {
+            $audio[] = [
+                'id' => 1,
+                'kind' => 'mix',
+                'source_path' => $options['audio_mix'],
+            ];
+        } elseif (! empty($options['audio']) && is_array($options['audio'])) {
+            $audio = $options['audio'];
+        }
+
+        $assets = $options['assets'] ?? [];
+        $targetDuration = (float) ($plan['duration'] ?? array_sum(array_column($scenes, 'duration')));
+
+        $built = $this->build([
+            'title' => (string) ($plan['title'] ?? 'AI-PVG Professional Edit'),
+            'language' => (string) ($plan['language'] ?? 'en'),
+            'scenes' => $scenes,
+            'target_duration' => $targetDuration,
+            'script_id' => null,
+        ], $options, $assets, $audio, null);
+
+        $built['plan'] = $plan;
+
+        return $built;
     }
 
     /**
      * Build a synthetic composition from a JSON payload (verification path).
      *
      * @param  array<string, mixed>  $payload
-     * @param  array{preset?: string, theme?: string, run_id?: string, fps?: int}  $options
+     * @param  array{preset?: string, theme?: string, run_id?: string, fps?: int, audio_mix?: string, word_timings?: list<array<string, mixed>>}  $options
      * @return array{html: string, projectDir: string, compositionId: string, runId: string, manifest: array<string, mixed>}
      */
     public function buildFromPayload(array $payload, array $options = []): array
     {
         $scenes = $this->normalizeScenes($payload['scenes'] ?? [], (float) ($payload['target_duration'] ?? 6));
+
+        $audio = [];
+        if (! empty($options['audio_mix']) && is_file($options['audio_mix'])) {
+            $audio[] = [
+                'id' => 1,
+                'kind' => 'mix',
+                'source_path' => $options['audio_mix'],
+            ];
+        } elseif (! empty($options['audio']) && is_array($options['audio'])) {
+            $audio = $options['audio'];
+        }
+
+        $assets = $options['assets'] ?? [];
 
         return $this->build([
             'title' => (string) ($payload['title'] ?? 'AI-PVG'),
@@ -80,7 +117,7 @@ class HyperFramesCompositionBuilder
             'scenes' => $scenes,
             'target_duration' => (float) ($payload['target_duration'] ?? array_sum(array_column($scenes, 'duration'))),
             'script_id' => null,
-        ], $options, [], [], null);
+        ], $options, $assets, $audio, null);
     }
 
     /**
@@ -142,7 +179,20 @@ class HyperFramesCompositionBuilder
             ])->render();
         }
 
-        $caption = $this->buildCaptions($captionTrack, $duration, $width, $height, $safe, $fontFamily, $theme);
+        if (! empty($options['word_timings']) && is_array($options['word_timings'])) {
+            $caption = $this->buildCaptionsFromTimings(
+                $options['word_timings'],
+                (bool) ($options['captions_verified'] ?? false),
+                $duration,
+                $width,
+                $height,
+                $safe,
+                $fontFamily,
+                $theme
+            );
+        } else {
+            $caption = $this->buildCaptions($captionTrack, $duration, $width, $height, $safe, $fontFamily, $theme);
+        }
         $captionHost = $caption['host'];
         $captionFile = $caption['html'];
 
@@ -215,6 +265,7 @@ class HyperFramesCompositionBuilder
             'compositionId' => $compositionId,
             'runId' => $runId,
             'manifest' => $manifest,
+            'audioClips' => $audioClips,
         ];
     }
 
@@ -395,14 +446,21 @@ class HyperFramesCompositionBuilder
             }
 
             $isVoice = str_contains($kind, 'voice') || str_contains($kind, 'narration');
+            $isMix = $kind === 'mix';
+            $volume = isset($asset['volume']) ? (string) $asset['volume'] : (($isVoice || $isMix) ? '1' : '0.12');
+            $fadeIn = isset($asset['fade_in']) ? (string) $asset['fade_in'] : (($isVoice || $isMix) ? '0' : '0.3');
+            $fadeOut = isset($asset['fade_out']) ? (string) $asset['fade_out'] : ($isMix ? '0' : '0.4');
+            $startOffset = isset($asset['start']) ? $this->formatSeconds((float) $asset['start']) : '0';
+            $clipDuration = isset($asset['duration']) ? $this->formatSeconds((float) $asset['duration']) : $this->formatSeconds($duration);
+
             $clips[] = [
                 'id' => 'audio-'.$kind.'-'.(int) $asset['id'],
                 'src' => 'assets/audio/'.$name,
-                'start' => '0',
-                'duration' => $this->formatSeconds($duration),
-                'volume' => $isVoice ? '1' : '0.12',
-                'fade_in' => $isVoice ? '0' : '0.3',
-                'fade_out' => '0.4',
+                'start' => $startOffset,
+                'duration' => $clipDuration,
+                'volume' => $volume,
+                'fade_in' => $fadeIn,
+                'fade_out' => $fadeOut,
                 'track' => $track++,
             ];
         }
@@ -542,7 +600,7 @@ class HyperFramesCompositionBuilder
         $groupIndex = 1;
 
         for ($i = 0; $i < $totalWords; $i += $chunkSize) {
-            $chunk = array_slice($words, $i, $chunkSize, true);
+            $chunk = array_slice($words, $i, $chunkSize);
             $groupStart = (float) $chunk[0]['start'];
             $lastWord = end($chunk);
             $groupEnd = (float) $lastWord['end'];
@@ -685,5 +743,143 @@ class HyperFramesCompositionBuilder
         }
 
         return ((int) hexdec($matches[1])).', '.((int) hexdec($matches[2])).', '.((int) hexdec($matches[3]));
+    }
+
+    /**
+     * @return list<array{id: int, scene_index: int, source_path: string, attribution: string}>
+     */
+    protected function resolveAssets(VideoScript $script): array
+    {
+        if (! class_exists(SceneAsset::class) || ! Schema::hasTable('scene_assets')) {
+            return [];
+        }
+
+        return SceneAsset::query()
+            ->where('video_script_id', $script->getKey())
+            ->with('visualAsset')
+            ->get()
+            ->filter(fn (SceneAsset $sa) => $sa->visualAsset !== null)
+            ->map(function (SceneAsset $sceneAsset): array {
+                $visual = $sceneAsset->visualAsset;
+                $storagePath = (string) $visual->storage_path;
+                $fullPath = is_file(storage_path('app/public/'.$storagePath))
+                    ? storage_path('app/public/'.$storagePath)
+                    : (is_file(storage_path('app/'.$storagePath)) ? storage_path('app/'.$storagePath) : $storagePath);
+
+                return [
+                    'id' => (int) $visual->getKey(),
+                    'scene_index' => (int) $sceneAsset->scene_index,
+                    'source_path' => $fullPath,
+                    'attribution' => (string) ($visual->attribution_text ?? $sceneAsset->attribution_text ?? ''),
+                ];
+            })
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @return list<array{id: int, kind: string, source_path: string}>
+     */
+    protected function resolveAudio(VideoScript $script): array
+    {
+        if (! class_exists(AudioAsset::class) || ! Schema::hasTable('audio_assets')) {
+            return [];
+        }
+
+        $all = AudioAsset::query()
+            ->where('video_script_id', $script->getKey())
+            ->orderBy('id')
+            ->get();
+
+        $resolved = [];
+        $hasVoice = false;
+        $hasMusic = false;
+
+        foreach ($all as $audio) {
+            $storagePath = (string) $audio->storage_path;
+            $fullPath = is_file(storage_path('app/public/'.$storagePath))
+                ? storage_path('app/public/'.$storagePath)
+                : (is_file(storage_path('app/'.$storagePath)) ? storage_path('app/'.$storagePath) : $storagePath);
+
+            if (! is_file($fullPath)) {
+                continue;
+            }
+
+            $kind = strtolower((string) ($audio->kind ?? 'narration'));
+            $isVoice = str_contains($kind, 'voice') || str_contains($kind, 'narration');
+            $isMusic = str_contains($kind, 'music') || str_contains($kind, 'background');
+
+            if ($isVoice && ! $hasVoice) {
+                $hasVoice = true;
+                $resolved[] = [
+                    'id' => (int) $audio->getKey(),
+                    'kind' => $kind,
+                    'source_path' => $fullPath,
+                ];
+            } elseif ($isMusic && ! $hasMusic) {
+                $hasMusic = true;
+                $resolved[] = [
+                    'id' => (int) $audio->getKey(),
+                    'kind' => $kind,
+                    'source_path' => $fullPath,
+                ];
+            }
+        }
+
+        return $resolved;
+    }
+
+    /**
+     * @param  array<string, mixed>  $options
+     */
+    protected function resolveCaptionTrack(VideoScript $script, array $options = []): ?CaptionTrack
+    {
+        if (isset($options['caption_track']) && $options['caption_track'] instanceof CaptionTrack) {
+            return $options['caption_track'];
+        }
+
+        if (! class_exists(CaptionTrack::class) || ! Schema::hasTable('caption_tracks')) {
+            return null;
+        }
+
+        return CaptionTrack::query()
+            ->where('video_script_id', $script->getKey())
+            ->orderByDesc('id')
+            ->first();
+    }
+
+    /**
+     * @param  array<string, mixed>  $options
+     * @return array{html: string, projectDir: string, compositionId: string, runId: string, manifest: array<string, mixed>}
+     */
+    public function writeAgentComposition(VideoScript $script, string $html, array $options = []): array
+    {
+        $runId = $this->sanitizeRunId((string) ($options['run_id'] ?? ('agent-script-'.$script->getKey())));
+        $projectDir = $this->prepareOutput($runId);
+        $this->copyVendorGsap($projectDir);
+        $this->writeProjectConfig($projectDir);
+
+        File::put($projectDir.'/index.html', $html);
+
+        $manifest = [
+            'compositionId' => 'agent',
+            'runId' => $runId,
+            'mode' => 'agent',
+            'title' => (string) $script->title,
+            'scenes' => [],
+            'media' => [],
+            'audio' => [],
+            'captions' => 'none',
+        ];
+
+        File::put($projectDir.'/manifest.json', json_encode($manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES).PHP_EOL);
+
+        return [
+            'html' => $html,
+            'projectDir' => $projectDir,
+            'compositionId' => 'agent',
+            'runId' => $runId,
+            'manifest' => $manifest,
+        ];
     }
 }

@@ -13,6 +13,9 @@ type Payload = {
   target_duration?: number;
   template?: string;
   audioUrl?: string;
+  audioTimeline?: unknown;
+  captionTrack?: unknown;
+  visualAssets?: unknown;
 };
 
 async function run() {
@@ -33,6 +36,9 @@ async function run() {
     targetDuration: payload.target_duration || 15,
     template: payload.template || 'cyber',
     ...(payload.audioUrl ? { audioUrl: payload.audioUrl } : {}),
+    ...(payload.audioTimeline ? { audioTimeline: payload.audioTimeline } : {}),
+    ...(payload.captionTrack ? { captionTrack: payload.captionTrack } : {}),
+    ...(payload.visualAssets ? { visualAssets: payload.visualAssets } : {}),
   };
 
   const entryPoint = process.env.REMOTION_ENTRY_POINT || resolve(currentDir, '../src/index.ts');

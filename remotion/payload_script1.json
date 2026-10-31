@@ -1,0 +1,1991 @@
+{
+    "scenes": [
+        {
+            "order": 1,
+            "type": "intro",
+            "duration": 12.242,
+            "headline": "Breaking: OpenAI has launched Nova-1, a new flagship AI model that sets",
+            "description": "Source-attributed introduction to the grounded story.",
+            "narration": "Breaking: OpenAI has launched Nova-1, a new flagship AI model that sets Breaking: OpenAI has launched Nova-1, a new flagship AI model that sets record scores on reasoning and coding benchmarks.",
+            "claim": "OpenAI launches Nova-1, its most capable AI model yet",
+            "visual_keywords": [
+                "openai",
+                "launches",
+                "nova",
+                "most",
+                "capable"
+            ],
+            "source_news_ids": [
+                87
+            ],
+            "directives": {
+                "camera_motion": "slow_in",
+                "b_roll_query": "breaking openai launched nova flagship",
+                "highlight_text": "Breaking: OpenAI has launched Nova-1, a new flagship AI model that set",
+                "sfx_cue": "whoosh",
+                "emotion_tone": "urgent",
+                "duration_seconds": 5
+            },
+            "id": "scene-1",
+            "start": 0,
+            "end": 12.242,
+            "narration_start": 0,
+            "narration_duration": 12.022
+        },
+        {
+            "order": 2,
+            "type": "segment",
+            "duration": 7.713,
+            "headline": "Breaking: OpenAI has launched Nova-1, a new flagship AI model that sets record s",
+            "description": "Grounded claim sourced from news ids: 87.",
+            "narration": "Breaking: OpenAI has launched Nova-1, a new flagship AI model that sets record scores on reasoning and coding benchmarks.",
+            "claim": "Breaking: OpenAI has launched Nova-1, a new flagship AI model that sets record scores on reasoning and coding benchmarks.",
+            "visual_keywords": [
+                "breaking",
+                "openai",
+                "launched",
+                "nova",
+                "flagship"
+            ],
+            "source_news_ids": [
+                87
+            ],
+            "directives": {
+                "camera_motion": "pan_left",
+                "b_roll_query": "breaking openai launched nova flagship",
+                "highlight_text": "Breaking: OpenAI has launched Nova-1, a new flagship AI model that set",
+                "sfx_cue": "impact",
+                "emotion_tone": "confident",
+                "duration_seconds": 7
+            },
+            "id": "scene-2",
+            "start": 12.242,
+            "end": 19.955,
+            "narration_start": 12.042,
+            "narration_duration": 7.493
+        },
+        {
+            "order": 3,
+            "type": "segment",
+            "duration": 5.968,
+            "headline": "The Nova-1 AI model release has sparked discussion across the community about Op",
+            "description": "Grounded claim sourced from news ids: 91.",
+            "narration": "The Nova-1 AI model release has sparked discussion across the community about OpenAI latest launch.",
+            "claim": "The Nova-1 AI model release has sparked discussion across the community about OpenAI latest launch.",
+            "visual_keywords": [
+                "nova",
+                "model",
+                "release",
+                "sparked",
+                "discussion"
+            ],
+            "source_news_ids": [
+                91
+            ],
+            "directives": {
+                "camera_motion": "push_in",
+                "b_roll_query": "nova model release sparked discussion",
+                "highlight_text": "The Nova-1 AI model release has sparked discussion across the communit",
+                "sfx_cue": "none",
+                "emotion_tone": "curious",
+                "duration_seconds": 7
+            },
+            "id": "scene-3",
+            "start": 19.955,
+            "end": 25.923,
+            "narration_start": 19.955,
+            "narration_duration": 5.748
+        },
+        {
+            "order": 4,
+            "type": "segment",
+            "duration": 6.288,
+            "headline": "GitHub developers are already integrating the Nova-1 AI model into code-generati",
+            "description": "Grounded claim sourced from news ids: 90.",
+            "narration": "GitHub developers are already integrating the Nova-1 AI model into code-generation workflows after its launch.",
+            "claim": "GitHub developers are already integrating the Nova-1 AI model into code-generation workflows after its launch.",
+            "visual_keywords": [
+                "github",
+                "developers",
+                "already",
+                "integrating",
+                "nova"
+            ],
+            "source_news_ids": [
+                90
+            ],
+            "directives": {
+                "camera_motion": "pan_right",
+                "b_roll_query": "github developers already integrating nova",
+                "highlight_text": "GitHub developers are already integrating the Nova-1 AI model into cod",
+                "sfx_cue": "impact",
+                "emotion_tone": "confident",
+                "duration_seconds": 7
+            },
+            "id": "scene-4",
+            "start": 25.923,
+            "end": 32.211,
+            "narration_start": 25.923,
+            "narration_duration": 6.068
+        },
+        {
+            "order": 5,
+            "type": "segment",
+            "duration": 5.998,
+            "headline": "OpenAI's Nova-1 AI model sets a new industry benchmark for reasoning and perform",
+            "description": "Grounded claim sourced from news ids: 89.",
+            "narration": "OpenAI's Nova-1 AI model sets a new industry benchmark for reasoning and performance after its launch.",
+            "claim": "OpenAI's Nova-1 AI model sets a new industry benchmark for reasoning and performance after its launch.",
+            "visual_keywords": [
+                "openai",
+                "nova",
+                "model",
+                "sets",
+                "industry"
+            ],
+            "source_news_ids": [
+                89
+            ],
+            "directives": {
+                "camera_motion": "slow_out",
+                "b_roll_query": "openai nova model sets industry",
+                "highlight_text": "OpenAI's Nova-1 AI model sets a new industry benchmark for reasoning a",
+                "sfx_cue": "none",
+                "emotion_tone": "curious",
+                "duration_seconds": 7
+            },
+            "id": "scene-5",
+            "start": 32.211,
+            "end": 38.209,
+            "narration_start": 32.011,
+            "narration_duration": 5.778
+        },
+        {
+            "order": 6,
+            "type": "segment",
+            "duration": 6.723,
+            "headline": "The Nova-1 AI model from OpenAI launches today with improved reasoning capabilit",
+            "description": "Grounded claim sourced from news ids: 88.",
+            "narration": "The Nova-1 AI model from OpenAI launches today with improved reasoning capabilities and record benchmark performance.",
+            "claim": "The Nova-1 AI model from OpenAI launches today with improved reasoning capabilities and record benchmark performance.",
+            "visual_keywords": [
+                "nova",
+                "model",
+                "from",
+                "openai",
+                "launches"
+            ],
+            "source_news_ids": [
+                88
+            ],
+            "directives": {
+                "camera_motion": "static",
+                "b_roll_query": "nova model from openai launches",
+                "highlight_text": "The Nova-1 AI model from OpenAI launches today with improved reasoning",
+                "sfx_cue": "impact",
+                "emotion_tone": "confident",
+                "duration_seconds": 7
+            },
+            "id": "scene-6",
+            "start": 38.209,
+            "end": 44.932,
+            "narration_start": 38.209,
+            "narration_duration": 6.503
+        },
+        {
+            "order": 7,
+            "type": "conclusion",
+            "duration": 8.493,
+            "headline": "Why this story matters",
+            "description": "Close with the verified source context.",
+            "narration": "Breaking: OpenAI has launched Nova-1, a new flagship AI model that sets record scores on reasoning and coding benchmarks.",
+            "claim": "Breaking: OpenAI has launched Nova-1, a new flagship AI model that sets record scores on reasoning and coding benchmarks.",
+            "visual_keywords": [
+                "breaking",
+                "openai",
+                "launched",
+                "nova",
+                "flagship"
+            ],
+            "source_news_ids": [
+                87,
+                88,
+                89,
+                90,
+                91
+            ],
+            "directives": {
+                "camera_motion": "slow_in",
+                "b_roll_query": "breaking openai launched nova flagship",
+                "highlight_text": "Breaking: OpenAI has launched Nova-1, a new flagship AI model that set",
+                "sfx_cue": "riser",
+                "emotion_tone": "serious",
+                "duration_seconds": 5
+            },
+            "id": "scene-7",
+            "start": 44.932,
+            "end": 53.425,
+            "narration_start": 44.932,
+            "narration_duration": 7.493
+        }
+    ],
+    "title": "OpenAI launches Nova-1, its most capable AI model yet",
+    "language": "en",
+    "target_duration": 53.425,
+    "template": "cyber",
+    "audioUrl": "script_1_mix.wav",
+    "audioTimeline": {
+        "version": 1,
+        "title": "OpenAI launches Nova-1, its most capable AI model yet",
+        "language": "en",
+        "total_duration": 53.425,
+        "tts_provider": "windows-sapi",
+        "voice": "Microsoft Zira Desktop",
+        "narration": [
+            {
+                "scene_id": "scene-1",
+                "path": "C:\\xampp\\htdocs\\laravel13\\ai-pvg\\storage\\app/renders/script_1/narration/scene-1.wav",
+                "duration": 12.022,
+                "start": 0,
+                "end": 12.022,
+                "text": "Breaking: OpenAI has launched Nova-1, a new flagship AI model that sets Breaking: OpenAI has launched Nova-1, a new flagship AI model that sets record scores on reasoning and coding benchmarks."
+            },
+            {
+                "scene_id": "scene-2",
+                "path": "C:\\xampp\\htdocs\\laravel13\\ai-pvg\\storage\\app/renders/script_1/narration/scene-2.wav",
+                "duration": 7.493,
+                "start": 12.242,
+                "end": 19.735,
+                "text": "Breaking: OpenAI has launched Nova-1, a new flagship AI model that sets record scores on reasoning and coding benchmarks."
+            },
+            {
+                "scene_id": "scene-3",
+                "path": "C:\\xampp\\htdocs\\laravel13\\ai-pvg\\storage\\app/renders/script_1/narration/scene-3.wav",
+                "duration": 5.748,
+                "start": 19.955,
+                "end": 25.703,
+                "text": "The Nova-1 AI model release has sparked discussion across the community about OpenAI latest launch."
+            },
+            {
+                "scene_id": "scene-4",
+                "path": "C:\\xampp\\htdocs\\laravel13\\ai-pvg\\storage\\app/renders/script_1/narration/scene-4.wav",
+                "duration": 6.068,
+                "start": 25.923,
+                "end": 31.991,
+                "text": "GitHub developers are already integrating the Nova-1 AI model into code-generation workflows after its launch."
+            },
+            {
+                "scene_id": "scene-5",
+                "path": "C:\\xampp\\htdocs\\laravel13\\ai-pvg\\storage\\app/renders/script_1/narration/scene-5.wav",
+                "duration": 5.778,
+                "start": 32.211,
+                "end": 37.989,
+                "text": "OpenAI's Nova-1 AI model sets a new industry benchmark for reasoning and performance after its launch."
+            },
+            {
+                "scene_id": "scene-6",
+                "path": "C:\\xampp\\htdocs\\laravel13\\ai-pvg\\storage\\app/renders/script_1/narration/scene-6.wav",
+                "duration": 6.503,
+                "start": 38.209,
+                "end": 44.712,
+                "text": "The Nova-1 AI model from OpenAI launches today with improved reasoning capabilities and record benchmark performance."
+            },
+            {
+                "scene_id": "scene-7",
+                "path": "C:\\xampp\\htdocs\\laravel13\\ai-pvg\\storage\\app/renders/script_1/narration/scene-7.wav",
+                "duration": 7.493,
+                "start": 44.932,
+                "end": 52.425,
+                "text": "Breaking: OpenAI has launched Nova-1, a new flagship AI model that sets record scores on reasoning and coding benchmarks."
+            }
+        ],
+        "music": {
+            "id": "music-bed-1",
+            "path": "C:\\xampp\\htdocs\\laravel13\\ai-pvg\\storage\\app/renders/script_1/music.wav",
+            "start": 0,
+            "end": 53.425,
+            "duration": 53.425,
+            "measured_duration": 53.426,
+            "volume": 0.14,
+            "fade_in": 0.5,
+            "fade_out": 1.5,
+            "ducking_db": -14
+        },
+        "sfx": [
+            {
+                "cue": "whoosh",
+                "path": "C:\\xampp\\htdocs\\laravel13\\ai-pvg\\storage\\app/renders/script_1/sfx/whoosh.wav",
+                "time": 0,
+                "gain": 0.35
+            },
+            {
+                "cue": "impact",
+                "path": "C:\\xampp\\htdocs\\laravel13\\ai-pvg\\storage\\app/renders/script_1/sfx/impact.wav",
+                "time": 12.242,
+                "gain": 0.35
+            },
+            {
+                "cue": "impact",
+                "path": "C:\\xampp\\htdocs\\laravel13\\ai-pvg\\storage\\app/renders/script_1/sfx/impact.wav",
+                "time": 25.923,
+                "gain": 0.35
+            },
+            {
+                "cue": "impact",
+                "path": "C:\\xampp\\htdocs\\laravel13\\ai-pvg\\storage\\app/renders/script_1/sfx/impact.wav",
+                "time": 38.209,
+                "gain": 0.35
+            },
+            {
+                "cue": "riser",
+                "path": "C:\\xampp\\htdocs\\laravel13\\ai-pvg\\storage\\app/renders/script_1/sfx/riser.wav",
+                "time": 44.932,
+                "gain": 0.35
+            }
+        ],
+        "scenes": [
+            {
+                "order": 1,
+                "type": "intro",
+                "duration": 12.242,
+                "headline": "Breaking: OpenAI has launched Nova-1, a new flagship AI model that sets",
+                "description": "Source-attributed introduction to the grounded story.",
+                "narration": "Breaking: OpenAI has launched Nova-1, a new flagship AI model that sets Breaking: OpenAI has launched Nova-1, a new flagship AI model that sets record scores on reasoning and coding benchmarks.",
+                "claim": "OpenAI launches Nova-1, its most capable AI model yet",
+                "visual_keywords": [
+                    "openai",
+                    "launches",
+                    "nova",
+                    "most",
+                    "capable"
+                ],
+                "source_news_ids": [
+                    87
+                ],
+                "directives": {
+                    "camera_motion": "slow_in",
+                    "b_roll_query": "breaking openai launched nova flagship",
+                    "highlight_text": "Breaking: OpenAI has launched Nova-1, a new flagship AI model that set",
+                    "sfx_cue": "whoosh",
+                    "emotion_tone": "urgent",
+                    "duration_seconds": 5
+                },
+                "id": "scene-1",
+                "start": 0,
+                "end": 12.242,
+                "narration_start": 0,
+                "narration_duration": 12.022
+            },
+            {
+                "order": 2,
+                "type": "segment",
+                "duration": 7.713,
+                "headline": "Breaking: OpenAI has launched Nova-1, a new flagship AI model that sets record s",
+                "description": "Grounded claim sourced from news ids: 87.",
+                "narration": "Breaking: OpenAI has launched Nova-1, a new flagship AI model that sets record scores on reasoning and coding benchmarks.",
+                "claim": "Breaking: OpenAI has launched Nova-1, a new flagship AI model that sets record scores on reasoning and coding benchmarks.",
+                "visual_keywords": [
+                    "breaking",
+                    "openai",
+                    "launched",
+                    "nova",
+                    "flagship"
+                ],
+                "source_news_ids": [
+                    87
+                ],
+                "directives": {
+                    "camera_motion": "pan_left",
+                    "b_roll_query": "breaking openai launched nova flagship",
+                    "highlight_text": "Breaking: OpenAI has launched Nova-1, a new flagship AI model that set",
+                    "sfx_cue": "impact",
+                    "emotion_tone": "confident",
+                    "duration_seconds": 7
+                },
+                "id": "scene-2",
+                "start": 12.242,
+                "end": 19.955,
+                "narration_start": 12.042,
+                "narration_duration": 7.493
+            },
+            {
+                "order": 3,
+                "type": "segment",
+                "duration": 5.968,
+                "headline": "The Nova-1 AI model release has sparked discussion across the community about Op",
+                "description": "Grounded claim sourced from news ids: 91.",
+                "narration": "The Nova-1 AI model release has sparked discussion across the community about OpenAI latest launch.",
+                "claim": "The Nova-1 AI model release has sparked discussion across the community about OpenAI latest launch.",
+                "visual_keywords": [
+                    "nova",
+                    "model",
+                    "release",
+                    "sparked",
+                    "discussion"
+                ],
+                "source_news_ids": [
+                    91
+                ],
+                "directives": {
+                    "camera_motion": "push_in",
+                    "b_roll_query": "nova model release sparked discussion",
+                    "highlight_text": "The Nova-1 AI model release has sparked discussion across the communit",
+                    "sfx_cue": "none",
+                    "emotion_tone": "curious",
+                    "duration_seconds": 7
+                },
+                "id": "scene-3",
+                "start": 19.955,
+                "end": 25.923,
+                "narration_start": 19.955,
+                "narration_duration": 5.748
+            },
+            {
+                "order": 4,
+                "type": "segment",
+                "duration": 6.288,
+                "headline": "GitHub developers are already integrating the Nova-1 AI model into code-generati",
+                "description": "Grounded claim sourced from news ids: 90.",
+                "narration": "GitHub developers are already integrating the Nova-1 AI model into code-generation workflows after its launch.",
+                "claim": "GitHub developers are already integrating the Nova-1 AI model into code-generation workflows after its launch.",
+                "visual_keywords": [
+                    "github",
+                    "developers",
+                    "already",
+                    "integrating",
+                    "nova"
+                ],
+                "source_news_ids": [
+                    90
+                ],
+                "directives": {
+                    "camera_motion": "pan_right",
+                    "b_roll_query": "github developers already integrating nova",
+                    "highlight_text": "GitHub developers are already integrating the Nova-1 AI model into cod",
+                    "sfx_cue": "impact",
+                    "emotion_tone": "confident",
+                    "duration_seconds": 7
+                },
+                "id": "scene-4",
+                "start": 25.923,
+                "end": 32.211,
+                "narration_start": 25.923,
+                "narration_duration": 6.068
+            },
+            {
+                "order": 5,
+                "type": "segment",
+                "duration": 5.998,
+                "headline": "OpenAI's Nova-1 AI model sets a new industry benchmark for reasoning and perform",
+                "description": "Grounded claim sourced from news ids: 89.",
+                "narration": "OpenAI's Nova-1 AI model sets a new industry benchmark for reasoning and performance after its launch.",
+                "claim": "OpenAI's Nova-1 AI model sets a new industry benchmark for reasoning and performance after its launch.",
+                "visual_keywords": [
+                    "openai",
+                    "nova",
+                    "model",
+                    "sets",
+                    "industry"
+                ],
+                "source_news_ids": [
+                    89
+                ],
+                "directives": {
+                    "camera_motion": "slow_out",
+                    "b_roll_query": "openai nova model sets industry",
+                    "highlight_text": "OpenAI's Nova-1 AI model sets a new industry benchmark for reasoning a",
+                    "sfx_cue": "none",
+                    "emotion_tone": "curious",
+                    "duration_seconds": 7
+                },
+                "id": "scene-5",
+                "start": 32.211,
+                "end": 38.209,
+                "narration_start": 32.011,
+                "narration_duration": 5.778
+            },
+            {
+                "order": 6,
+                "type": "segment",
+                "duration": 6.723,
+                "headline": "The Nova-1 AI model from OpenAI launches today with improved reasoning capabilit",
+                "description": "Grounded claim sourced from news ids: 88.",
+                "narration": "The Nova-1 AI model from OpenAI launches today with improved reasoning capabilities and record benchmark performance.",
+                "claim": "The Nova-1 AI model from OpenAI launches today with improved reasoning capabilities and record benchmark performance.",
+                "visual_keywords": [
+                    "nova",
+                    "model",
+                    "from",
+                    "openai",
+                    "launches"
+                ],
+                "source_news_ids": [
+                    88
+                ],
+                "directives": {
+                    "camera_motion": "static",
+                    "b_roll_query": "nova model from openai launches",
+                    "highlight_text": "The Nova-1 AI model from OpenAI launches today with improved reasoning",
+                    "sfx_cue": "impact",
+                    "emotion_tone": "confident",
+                    "duration_seconds": 7
+                },
+                "id": "scene-6",
+                "start": 38.209,
+                "end": 44.932,
+                "narration_start": 38.209,
+                "narration_duration": 6.503
+            },
+            {
+                "order": 7,
+                "type": "conclusion",
+                "duration": 8.493,
+                "headline": "Why this story matters",
+                "description": "Close with the verified source context.",
+                "narration": "Breaking: OpenAI has launched Nova-1, a new flagship AI model that sets record scores on reasoning and coding benchmarks.",
+                "claim": "Breaking: OpenAI has launched Nova-1, a new flagship AI model that sets record scores on reasoning and coding benchmarks.",
+                "visual_keywords": [
+                    "breaking",
+                    "openai",
+                    "launched",
+                    "nova",
+                    "flagship"
+                ],
+                "source_news_ids": [
+                    87,
+                    88,
+                    89,
+                    90,
+                    91
+                ],
+                "directives": {
+                    "camera_motion": "slow_in",
+                    "b_roll_query": "breaking openai launched nova flagship",
+                    "highlight_text": "Breaking: OpenAI has launched Nova-1, a new flagship AI model that set",
+                    "sfx_cue": "riser",
+                    "emotion_tone": "serious",
+                    "duration_seconds": 5
+                },
+                "id": "scene-7",
+                "start": 44.932,
+                "end": 53.425,
+                "narration_start": 44.932,
+                "narration_duration": 7.493
+            }
+        ],
+        "mix": {
+            "path": "C:\\xampp\\htdocs\\laravel13\\ai-pvg\\storage\\app/renders/script_1/mix.wav",
+            "duration": 53.425,
+            "integrated_lufs": -14,
+            "true_peak_dbtp": -1.5,
+            "lra": 2.4
+        },
+        "word_timings": [
+            {
+                "word": "Breaking,",
+                "startMs": 0,
+                "endMs": 800
+            },
+            {
+                "word": "OpenAI",
+                "startMs": 800,
+                "endMs": 1440
+            },
+            {
+                "word": "has",
+                "startMs": 1440,
+                "endMs": 1600
+            },
+            {
+                "word": "launched",
+                "startMs": 1600,
+                "endMs": 1840
+            },
+            {
+                "word": "Nova",
+                "startMs": 1840,
+                "endMs": 2160
+            },
+            {
+                "word": "1,",
+                "startMs": 2240,
+                "endMs": 2720
+            },
+            {
+                "word": "a",
+                "startMs": 2720,
+                "endMs": 2800
+            },
+            {
+                "word": "new",
+                "startMs": 2800,
+                "endMs": 2960
+            },
+            {
+                "word": "flagship",
+                "startMs": 2960,
+                "endMs": 3520
+            },
+            {
+                "word": "AI",
+                "startMs": 3520,
+                "endMs": 3920
+            },
+            {
+                "word": "model",
+                "startMs": 3920,
+                "endMs": 4000
+            },
+            {
+                "word": "that",
+                "startMs": 4160,
+                "endMs": 4320
+            },
+            {
+                "word": "sets",
+                "startMs": 4320,
+                "endMs": 4640
+            },
+            {
+                "word": "breaking.",
+                "startMs": 4640,
+                "endMs": 5280
+            },
+            {
+                "word": "OpenAI",
+                "startMs": 5280,
+                "endMs": 6000
+            },
+            {
+                "word": "has",
+                "startMs": 6000,
+                "endMs": 6080
+            },
+            {
+                "word": "launched",
+                "startMs": 6080,
+                "endMs": 6400
+            },
+            {
+                "word": "Nova",
+                "startMs": 6400,
+                "endMs": 6720
+            },
+            {
+                "word": "1,",
+                "startMs": 6800,
+                "endMs": 7200
+            },
+            {
+                "word": "a",
+                "startMs": 7200,
+                "endMs": 7360
+            },
+            {
+                "word": "new",
+                "startMs": 7360,
+                "endMs": 7520
+            },
+            {
+                "word": "flagship",
+                "startMs": 7520,
+                "endMs": 8080
+            },
+            {
+                "word": "AI",
+                "startMs": 8080,
+                "endMs": 8480
+            },
+            {
+                "word": "model",
+                "startMs": 8480,
+                "endMs": 8560
+            },
+            {
+                "word": "that",
+                "startMs": 8720,
+                "endMs": 8880
+            },
+            {
+                "word": "sets",
+                "startMs": 8880,
+                "endMs": 9120
+            },
+            {
+                "word": "record",
+                "startMs": 9120,
+                "endMs": 9360
+            },
+            {
+                "word": "scores",
+                "startMs": 9360,
+                "endMs": 9680
+            },
+            {
+                "word": "on",
+                "startMs": 9680,
+                "endMs": 9840
+            },
+            {
+                "word": "reasoning",
+                "startMs": 9840,
+                "endMs": 10240
+            },
+            {
+                "word": "and",
+                "startMs": 10240,
+                "endMs": 10400
+            },
+            {
+                "word": "coding",
+                "startMs": 10400,
+                "endMs": 10800
+            },
+            {
+                "word": "benchmarks.",
+                "startMs": 10800,
+                "endMs": 12080
+            },
+            {
+                "word": "Breaking,",
+                "startMs": 12080,
+                "endMs": 12960
+            },
+            {
+                "word": "OpenAI",
+                "startMs": 12960,
+                "endMs": 13680
+            },
+            {
+                "word": "has",
+                "startMs": 13680,
+                "endMs": 13840
+            },
+            {
+                "word": "launched",
+                "startMs": 13840,
+                "endMs": 14080
+            },
+            {
+                "word": "Nova",
+                "startMs": 14080,
+                "endMs": 14400
+            },
+            {
+                "word": "1,",
+                "startMs": 14560,
+                "endMs": 14960
+            },
+            {
+                "word": "a",
+                "startMs": 14960,
+                "endMs": 15040
+            },
+            {
+                "word": "new",
+                "startMs": 15040,
+                "endMs": 15200
+            },
+            {
+                "word": "flagship",
+                "startMs": 15200,
+                "endMs": 15760
+            },
+            {
+                "word": "AI",
+                "startMs": 15760,
+                "endMs": 16160
+            },
+            {
+                "word": "model",
+                "startMs": 16160,
+                "endMs": 16240
+            },
+            {
+                "word": "that",
+                "startMs": 16400,
+                "endMs": 16560
+            },
+            {
+                "word": "sets",
+                "startMs": 16560,
+                "endMs": 16800
+            },
+            {
+                "word": "record",
+                "startMs": 16800,
+                "endMs": 17120
+            },
+            {
+                "word": "scores",
+                "startMs": 17120,
+                "endMs": 17360
+            },
+            {
+                "word": "on",
+                "startMs": 17360,
+                "endMs": 17520
+            },
+            {
+                "word": "reasoning",
+                "startMs": 17520,
+                "endMs": 18000
+            },
+            {
+                "word": "and",
+                "startMs": 18000,
+                "endMs": 18160
+            },
+            {
+                "word": "coding",
+                "startMs": 18160,
+                "endMs": 18480
+            },
+            {
+                "word": "benchmarks.",
+                "startMs": 18480,
+                "endMs": 19680
+            },
+            {
+                "word": "The",
+                "startMs": 19680,
+                "endMs": 19840
+            },
+            {
+                "word": "Nova",
+                "startMs": 19840,
+                "endMs": 20160
+            },
+            {
+                "word": "1",
+                "startMs": 20320,
+                "endMs": 20640
+            },
+            {
+                "word": "AI",
+                "startMs": 20640,
+                "endMs": 20960
+            },
+            {
+                "word": "model",
+                "startMs": 20960,
+                "endMs": 21120
+            },
+            {
+                "word": "release",
+                "startMs": 21280,
+                "endMs": 21600
+            },
+            {
+                "word": "has",
+                "startMs": 21600,
+                "endMs": 21760
+            },
+            {
+                "word": "sparked",
+                "startMs": 21760,
+                "endMs": 22160
+            },
+            {
+                "word": "discussion",
+                "startMs": 22160,
+                "endMs": 22560
+            },
+            {
+                "word": "across",
+                "startMs": 22560,
+                "endMs": 22800
+            },
+            {
+                "word": "the",
+                "startMs": 22800,
+                "endMs": 22880
+            },
+            {
+                "word": "community",
+                "startMs": 22880,
+                "endMs": 23280
+            },
+            {
+                "word": "about",
+                "startMs": 23280,
+                "endMs": 23520
+            },
+            {
+                "word": "OpenAI",
+                "startMs": 23520,
+                "endMs": 24240
+            },
+            {
+                "word": "latest",
+                "startMs": 24320,
+                "endMs": 24800
+            },
+            {
+                "word": "launch.",
+                "startMs": 24800,
+                "endMs": 25520
+            },
+            {
+                "word": "GitHub",
+                "startMs": 25680,
+                "endMs": 26320
+            },
+            {
+                "word": "developers",
+                "startMs": 26320,
+                "endMs": 26800
+            },
+            {
+                "word": "are",
+                "startMs": 26800,
+                "endMs": 26960
+            },
+            {
+                "word": "already",
+                "startMs": 26960,
+                "endMs": 27280
+            },
+            {
+                "word": "integrating",
+                "startMs": 27280,
+                "endMs": 27680
+            },
+            {
+                "word": "the",
+                "startMs": 27680,
+                "endMs": 27760
+            },
+            {
+                "word": "Nova",
+                "startMs": 27760,
+                "endMs": 28080
+            },
+            {
+                "word": "1",
+                "startMs": 28160,
+                "endMs": 28400
+            },
+            {
+                "word": "AI",
+                "startMs": 28400,
+                "endMs": 28720
+            },
+            {
+                "word": "model",
+                "startMs": 28720,
+                "endMs": 28880
+            },
+            {
+                "word": "into",
+                "startMs": 28960,
+                "endMs": 29200
+            },
+            {
+                "word": "code",
+                "startMs": 29200,
+                "endMs": 29360
+            },
+            {
+                "word": "generation",
+                "startMs": 29440,
+                "endMs": 29920
+            },
+            {
+                "word": "workflows",
+                "startMs": 29920,
+                "endMs": 30560
+            },
+            {
+                "word": "after",
+                "startMs": 30560,
+                "endMs": 30800
+            },
+            {
+                "word": "its",
+                "startMs": 30800,
+                "endMs": 31040
+            },
+            {
+                "word": "launch.",
+                "startMs": 31040,
+                "endMs": 31920
+            },
+            {
+                "word": "OpenA's",
+                "startMs": 31920,
+                "endMs": 32800
+            },
+            {
+                "word": "Nova",
+                "startMs": 32800,
+                "endMs": 32960
+            },
+            {
+                "word": "1",
+                "startMs": 33040,
+                "endMs": 33280
+            },
+            {
+                "word": "AI",
+                "startMs": 33280,
+                "endMs": 33600
+            },
+            {
+                "word": "model",
+                "startMs": 33600,
+                "endMs": 33680
+            },
+            {
+                "word": "sets",
+                "startMs": 33840,
+                "endMs": 34080
+            },
+            {
+                "word": "a",
+                "startMs": 34080,
+                "endMs": 34160
+            },
+            {
+                "word": "new",
+                "startMs": 34160,
+                "endMs": 34320
+            },
+            {
+                "word": "industry",
+                "startMs": 34320,
+                "endMs": 34720
+            },
+            {
+                "word": "benchmark",
+                "startMs": 34720,
+                "endMs": 35200
+            },
+            {
+                "word": "for",
+                "startMs": 35200,
+                "endMs": 35360
+            },
+            {
+                "word": "reasoning",
+                "startMs": 35360,
+                "endMs": 35840
+            },
+            {
+                "word": "and",
+                "startMs": 35840,
+                "endMs": 36000
+            },
+            {
+                "word": "performance",
+                "startMs": 36000,
+                "endMs": 36480
+            },
+            {
+                "word": "after",
+                "startMs": 36480,
+                "endMs": 36720
+            },
+            {
+                "word": "its",
+                "startMs": 36720,
+                "endMs": 36960
+            },
+            {
+                "word": "launch.",
+                "startMs": 36960,
+                "endMs": 38000
+            },
+            {
+                "word": "The",
+                "startMs": 38000,
+                "endMs": 38160
+            },
+            {
+                "word": "Nova",
+                "startMs": 38160,
+                "endMs": 38480
+            },
+            {
+                "word": "1",
+                "startMs": 38640,
+                "endMs": 38880
+            },
+            {
+                "word": "AI",
+                "startMs": 38880,
+                "endMs": 39200
+            },
+            {
+                "word": "model",
+                "startMs": 39200,
+                "endMs": 39280
+            },
+            {
+                "word": "from",
+                "startMs": 39440,
+                "endMs": 39600
+            },
+            {
+                "word": "OpenAI",
+                "startMs": 39600,
+                "endMs": 40320
+            },
+            {
+                "word": "launches",
+                "startMs": 40320,
+                "endMs": 40560
+            },
+            {
+                "word": "today",
+                "startMs": 40720,
+                "endMs": 40960
+            },
+            {
+                "word": "with",
+                "startMs": 40960,
+                "endMs": 41120
+            },
+            {
+                "word": "improved",
+                "startMs": 41120,
+                "endMs": 41520
+            },
+            {
+                "word": "reasoning",
+                "startMs": 41520,
+                "endMs": 41920
+            },
+            {
+                "word": "capabilities",
+                "startMs": 41920,
+                "endMs": 42400
+            },
+            {
+                "word": "and",
+                "startMs": 42400,
+                "endMs": 42560
+            },
+            {
+                "word": "record",
+                "startMs": 42560,
+                "endMs": 42880
+            },
+            {
+                "word": "benchmark",
+                "startMs": 42880,
+                "endMs": 43520
+            },
+            {
+                "word": "performance.",
+                "startMs": 43520,
+                "endMs": 44800
+            },
+            {
+                "word": "Breaking",
+                "startMs": 44800,
+                "endMs": 45440
+            },
+            {
+                "word": "OpenAI",
+                "startMs": 45680,
+                "endMs": 46400
+            },
+            {
+                "word": "has",
+                "startMs": 46400,
+                "endMs": 46480
+            },
+            {
+                "word": "launched",
+                "startMs": 46480,
+                "endMs": 46800
+            },
+            {
+                "word": "Nova",
+                "startMs": 46800,
+                "endMs": 47120
+            },
+            {
+                "word": "1,",
+                "startMs": 47200,
+                "endMs": 47600
+            },
+            {
+                "word": "a",
+                "startMs": 47600,
+                "endMs": 47760
+            },
+            {
+                "word": "new",
+                "startMs": 47760,
+                "endMs": 47920
+            },
+            {
+                "word": "flagship",
+                "startMs": 47920,
+                "endMs": 48480
+            },
+            {
+                "word": "AI",
+                "startMs": 48480,
+                "endMs": 48880
+            },
+            {
+                "word": "model",
+                "startMs": 48880,
+                "endMs": 48960
+            },
+            {
+                "word": "that",
+                "startMs": 49120,
+                "endMs": 49280
+            },
+            {
+                "word": "sets",
+                "startMs": 49280,
+                "endMs": 49520
+            },
+            {
+                "word": "record",
+                "startMs": 49520,
+                "endMs": 49760
+            },
+            {
+                "word": "scores",
+                "startMs": 49760,
+                "endMs": 50080
+            },
+            {
+                "word": "on",
+                "startMs": 50080,
+                "endMs": 50240
+            },
+            {
+                "word": "reasoning",
+                "startMs": 50240,
+                "endMs": 50640
+            },
+            {
+                "word": "and",
+                "startMs": 50640,
+                "endMs": 50800
+            },
+            {
+                "word": "coding",
+                "startMs": 50800,
+                "endMs": 51200
+            },
+            {
+                "word": "benchmarks.",
+                "startMs": 51200,
+                "endMs": 52800
+            }
+        ],
+        "transcription_ok": true
+    },
+    "captionTrack": {
+        "wordTimings": [
+            {
+                "word": "Breaking,",
+                "startMs": 0,
+                "endMs": 800
+            },
+            {
+                "word": "OpenAI",
+                "startMs": 800,
+                "endMs": 1440
+            },
+            {
+                "word": "has",
+                "startMs": 1440,
+                "endMs": 1600
+            },
+            {
+                "word": "launched",
+                "startMs": 1600,
+                "endMs": 1840
+            },
+            {
+                "word": "Nova",
+                "startMs": 1840,
+                "endMs": 2160
+            },
+            {
+                "word": "1,",
+                "startMs": 2240,
+                "endMs": 2720
+            },
+            {
+                "word": "a",
+                "startMs": 2720,
+                "endMs": 2800
+            },
+            {
+                "word": "new",
+                "startMs": 2800,
+                "endMs": 2960
+            },
+            {
+                "word": "flagship",
+                "startMs": 2960,
+                "endMs": 3520
+            },
+            {
+                "word": "AI",
+                "startMs": 3520,
+                "endMs": 3920
+            },
+            {
+                "word": "model",
+                "startMs": 3920,
+                "endMs": 4000
+            },
+            {
+                "word": "that",
+                "startMs": 4160,
+                "endMs": 4320
+            },
+            {
+                "word": "sets",
+                "startMs": 4320,
+                "endMs": 4640
+            },
+            {
+                "word": "breaking.",
+                "startMs": 4640,
+                "endMs": 5280
+            },
+            {
+                "word": "OpenAI",
+                "startMs": 5280,
+                "endMs": 6000
+            },
+            {
+                "word": "has",
+                "startMs": 6000,
+                "endMs": 6080
+            },
+            {
+                "word": "launched",
+                "startMs": 6080,
+                "endMs": 6400
+            },
+            {
+                "word": "Nova",
+                "startMs": 6400,
+                "endMs": 6720
+            },
+            {
+                "word": "1,",
+                "startMs": 6800,
+                "endMs": 7200
+            },
+            {
+                "word": "a",
+                "startMs": 7200,
+                "endMs": 7360
+            },
+            {
+                "word": "new",
+                "startMs": 7360,
+                "endMs": 7520
+            },
+            {
+                "word": "flagship",
+                "startMs": 7520,
+                "endMs": 8080
+            },
+            {
+                "word": "AI",
+                "startMs": 8080,
+                "endMs": 8480
+            },
+            {
+                "word": "model",
+                "startMs": 8480,
+                "endMs": 8560
+            },
+            {
+                "word": "that",
+                "startMs": 8720,
+                "endMs": 8880
+            },
+            {
+                "word": "sets",
+                "startMs": 8880,
+                "endMs": 9120
+            },
+            {
+                "word": "record",
+                "startMs": 9120,
+                "endMs": 9360
+            },
+            {
+                "word": "scores",
+                "startMs": 9360,
+                "endMs": 9680
+            },
+            {
+                "word": "on",
+                "startMs": 9680,
+                "endMs": 9840
+            },
+            {
+                "word": "reasoning",
+                "startMs": 9840,
+                "endMs": 10240
+            },
+            {
+                "word": "and",
+                "startMs": 10240,
+                "endMs": 10400
+            },
+            {
+                "word": "coding",
+                "startMs": 10400,
+                "endMs": 10800
+            },
+            {
+                "word": "benchmarks.",
+                "startMs": 10800,
+                "endMs": 12080
+            },
+            {
+                "word": "Breaking,",
+                "startMs": 12080,
+                "endMs": 12960
+            },
+            {
+                "word": "OpenAI",
+                "startMs": 12960,
+                "endMs": 13680
+            },
+            {
+                "word": "has",
+                "startMs": 13680,
+                "endMs": 13840
+            },
+            {
+                "word": "launched",
+                "startMs": 13840,
+                "endMs": 14080
+            },
+            {
+                "word": "Nova",
+                "startMs": 14080,
+                "endMs": 14400
+            },
+            {
+                "word": "1,",
+                "startMs": 14560,
+                "endMs": 14960
+            },
+            {
+                "word": "a",
+                "startMs": 14960,
+                "endMs": 15040
+            },
+            {
+                "word": "new",
+                "startMs": 15040,
+                "endMs": 15200
+            },
+            {
+                "word": "flagship",
+                "startMs": 15200,
+                "endMs": 15760
+            },
+            {
+                "word": "AI",
+                "startMs": 15760,
+                "endMs": 16160
+            },
+            {
+                "word": "model",
+                "startMs": 16160,
+                "endMs": 16240
+            },
+            {
+                "word": "that",
+                "startMs": 16400,
+                "endMs": 16560
+            },
+            {
+                "word": "sets",
+                "startMs": 16560,
+                "endMs": 16800
+            },
+            {
+                "word": "record",
+                "startMs": 16800,
+                "endMs": 17120
+            },
+            {
+                "word": "scores",
+                "startMs": 17120,
+                "endMs": 17360
+            },
+            {
+                "word": "on",
+                "startMs": 17360,
+                "endMs": 17520
+            },
+            {
+                "word": "reasoning",
+                "startMs": 17520,
+                "endMs": 18000
+            },
+            {
+                "word": "and",
+                "startMs": 18000,
+                "endMs": 18160
+            },
+            {
+                "word": "coding",
+                "startMs": 18160,
+                "endMs": 18480
+            },
+            {
+                "word": "benchmarks.",
+                "startMs": 18480,
+                "endMs": 19680
+            },
+            {
+                "word": "The",
+                "startMs": 19680,
+                "endMs": 19840
+            },
+            {
+                "word": "Nova",
+                "startMs": 19840,
+                "endMs": 20160
+            },
+            {
+                "word": "1",
+                "startMs": 20320,
+                "endMs": 20640
+            },
+            {
+                "word": "AI",
+                "startMs": 20640,
+                "endMs": 20960
+            },
+            {
+                "word": "model",
+                "startMs": 20960,
+                "endMs": 21120
+            },
+            {
+                "word": "release",
+                "startMs": 21280,
+                "endMs": 21600
+            },
+            {
+                "word": "has",
+                "startMs": 21600,
+                "endMs": 21760
+            },
+            {
+                "word": "sparked",
+                "startMs": 21760,
+                "endMs": 22160
+            },
+            {
+                "word": "discussion",
+                "startMs": 22160,
+                "endMs": 22560
+            },
+            {
+                "word": "across",
+                "startMs": 22560,
+                "endMs": 22800
+            },
+            {
+                "word": "the",
+                "startMs": 22800,
+                "endMs": 22880
+            },
+            {
+                "word": "community",
+                "startMs": 22880,
+                "endMs": 23280
+            },
+            {
+                "word": "about",
+                "startMs": 23280,
+                "endMs": 23520
+            },
+            {
+                "word": "OpenAI",
+                "startMs": 23520,
+                "endMs": 24240
+            },
+            {
+                "word": "latest",
+                "startMs": 24320,
+                "endMs": 24800
+            },
+            {
+                "word": "launch.",
+                "startMs": 24800,
+                "endMs": 25520
+            },
+            {
+                "word": "GitHub",
+                "startMs": 25680,
+                "endMs": 26320
+            },
+            {
+                "word": "developers",
+                "startMs": 26320,
+                "endMs": 26800
+            },
+            {
+                "word": "are",
+                "startMs": 26800,
+                "endMs": 26960
+            },
+            {
+                "word": "already",
+                "startMs": 26960,
+                "endMs": 27280
+            },
+            {
+                "word": "integrating",
+                "startMs": 27280,
+                "endMs": 27680
+            },
+            {
+                "word": "the",
+                "startMs": 27680,
+                "endMs": 27760
+            },
+            {
+                "word": "Nova",
+                "startMs": 27760,
+                "endMs": 28080
+            },
+            {
+                "word": "1",
+                "startMs": 28160,
+                "endMs": 28400
+            },
+            {
+                "word": "AI",
+                "startMs": 28400,
+                "endMs": 28720
+            },
+            {
+                "word": "model",
+                "startMs": 28720,
+                "endMs": 28880
+            },
+            {
+                "word": "into",
+                "startMs": 28960,
+                "endMs": 29200
+            },
+            {
+                "word": "code",
+                "startMs": 29200,
+                "endMs": 29360
+            },
+            {
+                "word": "generation",
+                "startMs": 29440,
+                "endMs": 29920
+            },
+            {
+                "word": "workflows",
+                "startMs": 29920,
+                "endMs": 30560
+            },
+            {
+                "word": "after",
+                "startMs": 30560,
+                "endMs": 30800
+            },
+            {
+                "word": "its",
+                "startMs": 30800,
+                "endMs": 31040
+            },
+            {
+                "word": "launch.",
+                "startMs": 31040,
+                "endMs": 31920
+            },
+            {
+                "word": "OpenA's",
+                "startMs": 31920,
+                "endMs": 32800
+            },
+            {
+                "word": "Nova",
+                "startMs": 32800,
+                "endMs": 32960
+            },
+            {
+                "word": "1",
+                "startMs": 33040,
+                "endMs": 33280
+            },
+            {
+                "word": "AI",
+                "startMs": 33280,
+                "endMs": 33600
+            },
+            {
+                "word": "model",
+                "startMs": 33600,
+                "endMs": 33680
+            },
+            {
+                "word": "sets",
+                "startMs": 33840,
+                "endMs": 34080
+            },
+            {
+                "word": "a",
+                "startMs": 34080,
+                "endMs": 34160
+            },
+            {
+                "word": "new",
+                "startMs": 34160,
+                "endMs": 34320
+            },
+            {
+                "word": "industry",
+                "startMs": 34320,
+                "endMs": 34720
+            },
+            {
+                "word": "benchmark",
+                "startMs": 34720,
+                "endMs": 35200
+            },
+            {
+                "word": "for",
+                "startMs": 35200,
+                "endMs": 35360
+            },
+            {
+                "word": "reasoning",
+                "startMs": 35360,
+                "endMs": 35840
+            },
+            {
+                "word": "and",
+                "startMs": 35840,
+                "endMs": 36000
+            },
+            {
+                "word": "performance",
+                "startMs": 36000,
+                "endMs": 36480
+            },
+            {
+                "word": "after",
+                "startMs": 36480,
+                "endMs": 36720
+            },
+            {
+                "word": "its",
+                "startMs": 36720,
+                "endMs": 36960
+            },
+            {
+                "word": "launch.",
+                "startMs": 36960,
+                "endMs": 38000
+            },
+            {
+                "word": "The",
+                "startMs": 38000,
+                "endMs": 38160
+            },
+            {
+                "word": "Nova",
+                "startMs": 38160,
+                "endMs": 38480
+            },
+            {
+                "word": "1",
+                "startMs": 38640,
+                "endMs": 38880
+            },
+            {
+                "word": "AI",
+                "startMs": 38880,
+                "endMs": 39200
+            },
+            {
+                "word": "model",
+                "startMs": 39200,
+                "endMs": 39280
+            },
+            {
+                "word": "from",
+                "startMs": 39440,
+                "endMs": 39600
+            },
+            {
+                "word": "OpenAI",
+                "startMs": 39600,
+                "endMs": 40320
+            },
+            {
+                "word": "launches",
+                "startMs": 40320,
+                "endMs": 40560
+            },
+            {
+                "word": "today",
+                "startMs": 40720,
+                "endMs": 40960
+            },
+            {
+                "word": "with",
+                "startMs": 40960,
+                "endMs": 41120
+            },
+            {
+                "word": "improved",
+                "startMs": 41120,
+                "endMs": 41520
+            },
+            {
+                "word": "reasoning",
+                "startMs": 41520,
+                "endMs": 41920
+            },
+            {
+                "word": "capabilities",
+                "startMs": 41920,
+                "endMs": 42400
+            },
+            {
+                "word": "and",
+                "startMs": 42400,
+                "endMs": 42560
+            },
+            {
+                "word": "record",
+                "startMs": 42560,
+                "endMs": 42880
+            },
+            {
+                "word": "benchmark",
+                "startMs": 42880,
+                "endMs": 43520
+            },
+            {
+                "word": "performance.",
+                "startMs": 43520,
+                "endMs": 44800
+            },
+            {
+                "word": "Breaking",
+                "startMs": 44800,
+                "endMs": 45440
+            },
+            {
+                "word": "OpenAI",
+                "startMs": 45680,
+                "endMs": 46400
+            },
+            {
+                "word": "has",
+                "startMs": 46400,
+                "endMs": 46480
+            },
+            {
+                "word": "launched",
+                "startMs": 46480,
+                "endMs": 46800
+            },
+            {
+                "word": "Nova",
+                "startMs": 46800,
+                "endMs": 47120
+            },
+            {
+                "word": "1,",
+                "startMs": 47200,
+                "endMs": 47600
+            },
+            {
+                "word": "a",
+                "startMs": 47600,
+                "endMs": 47760
+            },
+            {
+                "word": "new",
+                "startMs": 47760,
+                "endMs": 47920
+            },
+            {
+                "word": "flagship",
+                "startMs": 47920,
+                "endMs": 48480
+            },
+            {
+                "word": "AI",
+                "startMs": 48480,
+                "endMs": 48880
+            },
+            {
+                "word": "model",
+                "startMs": 48880,
+                "endMs": 48960
+            },
+            {
+                "word": "that",
+                "startMs": 49120,
+                "endMs": 49280
+            },
+            {
+                "word": "sets",
+                "startMs": 49280,
+                "endMs": 49520
+            },
+            {
+                "word": "record",
+                "startMs": 49520,
+                "endMs": 49760
+            },
+            {
+                "word": "scores",
+                "startMs": 49760,
+                "endMs": 50080
+            },
+            {
+                "word": "on",
+                "startMs": 50080,
+                "endMs": 50240
+            },
+            {
+                "word": "reasoning",
+                "startMs": 50240,
+                "endMs": 50640
+            },
+            {
+                "word": "and",
+                "startMs": 50640,
+                "endMs": 50800
+            },
+            {
+                "word": "coding",
+                "startMs": 50800,
+                "endMs": 51200
+            },
+            {
+                "word": "benchmarks.",
+                "startMs": 51200,
+                "endMs": 52800
+            }
+        ]
+    }
+}
