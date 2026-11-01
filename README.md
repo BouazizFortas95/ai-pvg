@@ -1,59 +1,81 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# AI-PVG: Autonomous AI Programmatic Video Generator
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+AI-PVG is an enterprise-grade autonomous pipeline studio and rendering system built on Laravel 13, Filament, HyperFrames, Remotion, and ElevenLabs. It transforms breaking news into multi-format, studio-grade vertical and landscape news videos through a 6-stage deterministic pipeline.
 
-## About Laravel
+---
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+## Architecture Overview
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+```
+                                      AI-PVG Pipeline Flow
+ ┌───────────────┐     ┌────────────────┐     ┌───────────────┐
+ │ 1. Ingest     │ ──> │ 2. Cluster     │ ──> │ 3. Script     │
+ │ News Triage   │     │ & Greenlight   │     │ & Edit Plan   │
+ └───────────────┘     └────────────────┘     └───────────────┘
+                                                      │
+ ┌───────────────┐     ┌────────────────┐     ┌───────┴───────┐
+ │ 6. Render MP4 │ <── │ 5. Motion IP   │ <── │ 4. ElevenLabs │
+ │ & Manifest    │     │ & Multi-Format │     │ Audio & Captions
+ └───────────────┘     └────────────────┘     └───────────────┘
+         │
+         ▼
+ 🔒 ZERO PUBLISHING LOCK: All outputs saved to storage/app/video_out/
+```
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+### 1. Motion-Graphics Library ("Prompt Motion")
+- **Intellectual Property Taxonomy:**
+  - `reference_only`: Usable as design inspiration; **strictly blocked** by the validator and preflight from being rendered into shipping video.
+  - `cleared`: Third-party recipes/components with explicit usage clearance.
+  - `original`: In-house original IP created by the team or compiled by LLM with certified unique code.
+- **Contract & Validation:**
+  - Zero external assets or network fetches; pauses GSAP timeline offline.
+  - Deterministic Mulberry32 PRNG seed generation per video scene.
+  - Contrast threshold $\ge 4.5:1$ strictly checked against background colors.
+- **Admin Review:** Complete Filament Resource under **Motion Library** with real-time preview, code inspection, and approval actions.
 
-## Learning Laravel
+### 2. ElevenLabs Studio Audio Pipeline
+- **Timestamped TTS:** Word-level monotonic timings generated via `/v1/text-to-speech/{voice_id}/with-timestamps`.
+- **Sound Effects (SFX):** Generated via `/v1/sound-generation` or procedural low-pass/bandpass noise synthesis when local fallback is active.
+- **Instrumental Music:** Ambient beds generated via `/v1/music` or procedural melodic synthesis.
+- **Global SHA-256 Cache:** Cached across runs under `storage/app/audio_library/{sfx,music,voices}/`.
+- **Broadcast Loudness Compliance:** Enforces EBU R128 ($-14\text{ LUFS} \pm 1.0\text{ LUFS}$, True Peak $\le -1.0\text{ dBTP}$).
+- **Budget Guard:** Real-time ledger accounting with reservation/settle lifecycle (`ai_usage_ledger`).
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework. You can also check out [Laravel Learn](https://laravel.com/learn), where you will be guided through building a modern Laravel application.
+### 3. Production Data Map & Preflight Diagnostics
+- **Preflight Diagnostics (`ProductionPreflight`):** Audits all upstream requirements across all 6 steps before rendering begins.
+- **Per-Run Folder Layout:** Artifacts structured strictly under `storage/app/production/{run_id}/`:
+  - `audio/`: Full voiceover narration, sound effects, background music.
+  - `manifest/`: Canonical `production_manifest.json` schema v1.0.0.
+  - `props/`: Remotion / HyperFrames visual scene properties.
+- **Canonical Manifest (`production_manifests` table):** Tracks immutable run snapshots with SHA-256 integrity checksums.
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+### 4. Zero Publishing Safety Lock
+- `automation.publishing.enabled = false` is enforced across all configs, migrations, pipeline runners, and preflight checks.
+- Completed videos are verified locally with FFprobe and stored in `storage/app/video_out/`.
 
-## Laravel Sponsors
+---
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+## Automated Test Verification
 
-### Premium Partners
+AI-PVG maintains 100% passing test coverage with zero stray HTTP requests (`Http::preventStrayRequests()`):
 
-- **[Vehikl](https://vehikl.com)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Redberry](https://redberry.international/laravel-development)**
-- **[Active Logic](https://activelogic.com)**
+```bash
+# Run all feature tests
+php vendor/bin/phpunit tests/Feature/
+```
 
-## Contributing
+Key test suites:
+- `ProductionDataMapTest.php`: Drift prevention test ensuring all tables, columns, and artifacts match documentation.
+- `ElevenLabsClientTest.php`: ElevenLabs API contract and error handling verification.
+- `SoundEffectServiceTest.php` & `MusicServiceTest.php`: Audio generation and global SHA-256 caching.
+- `MixAndLoudnessGateTest.php`: EBU R128 loudness gating and audio timeline integration.
+- `MotionLibraryTest.php`: Prompt Motion import, IP licensing, and review status.
+- `MotionCompilerAndSelectorTest.php`: Mulberry32 seed determinism, validator, and compiler.
+- `ProductionPreflightAndManifestTest.php`: Preflight diagnostics and manifest SHA-256 verification.
+- `EndToEndPipelineTest.php`: End-to-end 6-stage video production pipeline execution.
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
-
-## Code of Conduct
-
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
-
-## Security Vulnerabilities
-
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+---
 
 ## License
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+Proprietary — Internal AI-PVG Studio Engine.

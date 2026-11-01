@@ -65,4 +65,41 @@ class CaptionPipelineTest extends TestCase
         $service = new WordTimingService;
         $this->assertSame([], $service->estimateFromText('', 100));
     }
+
+    public function test_long_narration_with_high_word_count_maintains_strict_monotonicity(): void
+    {
+        $service = new WordTimingService;
+        // 250 words paragraph in 45000ms duration (where old clamp caused start_ms >= end_ms)
+        $words = array_fill(0, 250, 'breakingnews');
+        $text = implode(' ', $words);
+
+        $timings = $service->estimateFromText($text, 45000.0);
+
+        $this->assertCount(250, $timings);
+        $prevEnd = 0;
+        foreach ($timings as $t) {
+            $this->assertGreaterThanOrEqual($prevEnd, $t['start_ms']);
+            $this->assertGreaterThan($t['start_ms'], $t['end_ms']);
+            $prevEnd = $t['end_ms'];
+        }
+        $this->assertLessThanOrEqual(45100, $prevEnd);
+    }
+
+    public function test_verified_timings_handles_degenerate_or_zero_duration_metadata(): void
+    {
+        $service = new WordTimingService;
+        $verified = $service->verifiedFromTtsMetadata([
+            ['word' => 'Token1', 'start_ms' => 0, 'end_ms' => 0],
+            ['word' => 'Token2', 'start_ms' => 0, 'end_ms' => 0],
+            ['word' => 'Token3', 'start_ms' => 100],
+        ]);
+
+        $this->assertCount(3, $verified);
+        $prevEnd = 0;
+        foreach ($verified as $t) {
+            $this->assertGreaterThanOrEqual($prevEnd, $t['start_ms']);
+            $this->assertGreaterThan($t['start_ms'], $t['end_ms']);
+            $prevEnd = $t['end_ms'];
+        }
+    }
 }

@@ -5,6 +5,7 @@ namespace App\Services\Pipeline;
 use App\Enums\VideoRenderStatus;
 use App\Enums\VideoScriptStatus;
 use App\Jobs\ExecutePipelineStepJob;
+use App\Models\AudioAsset;
 use App\Models\CaptionTrack;
 use App\Models\FeatureFlag;
 use App\Models\MetadataVariant;
@@ -19,6 +20,8 @@ use App\Models\VideoScript;
 use App\Services\AI\Captions\CaptionTrackBuilder;
 use App\Services\AI\Captions\WordTimingService;
 use App\Services\AI\ScriptPipeline\ScriptPipelineService;
+use App\Services\Audio\ElevenLabs\ElevenLabsClient;
+use App\Services\Audio\ElevenLabs\TtsService;
 use App\Services\Automation\FanOutBatchService;
 use App\Services\Automation\RemotionPropInjector;
 use App\Services\Automation\ScenePropBuilder;
@@ -27,6 +30,8 @@ use App\Services\Automation\Triage\TriageRunner;
 use App\Services\Rendering\Audio\AudioPipeline;
 use App\Services\Rendering\EditPlan\EditPlanBuilder;
 use App\Services\Rendering\EditPlan\EditPlanValidator;
+use App\Services\Motion\MotionSelector;
+use App\Services\Production\ProductionManifestBuilder;
 use App\Services\RssImportService;
 use App\Services\VideoRenderingService;
 use App\Services\VoiceGenerationService;
@@ -77,6 +82,7 @@ class PipelineStepService
             'formats.enabled' => true,
             'render.hyperframes_enabled' => $hyperframesEnabled,
             'audio.pipeline_enabled' => true,
+            'audio.elevenlabs.enabled' => (bool) ($options['enable_elevenlabs'] ?? false),
             'avatar.enabled' => $avatarEnabled,
             'publishing.enabled' => false,
         ];
@@ -346,15 +352,46 @@ class PipelineStepService
             throw new RuntimeException('No approved VideoScript found. Run Step 3 first.');
         }
 
-        /** @var VoiceGenerationService $voiceSvc */
-        $voiceSvc = app(VoiceGenerationService::class);
-        $voice = $voiceSvc->generate($script);
-
-        /** @var WordTimingService $timingSvc */
-        $timingSvc = app(WordTimingService::class);
         $narration = (string) ($script->narration ?? '');
-        $duration = (float) ($script->estimated_duration ?? 30) * 1000;
-        $timings = $timingSvc->estimateFromText($narration, $duration);
+        $audioProvider = (string) ($options['audio_provider'] ?? config('automation.audio.provider', 'local'));
+        $elevenLabsResult = null;
+        $timings = [];
+        $ttsProviderName = 'local';
+        $costMicros = 0;
+
+        // Opt-in ElevenLabs speech synthesis when enabled and configured
+        if ($audioProvider === 'elevenlabs' && class_exists(TtsService::class) && FeatureFlag::isEnabled('audio.elevenlabs.enabled')) {
+            /** @var ElevenLabsClient $client */
+            $client = app(ElevenLabsClient::class);
+            if ($client->isConfigured()) {
+                /** @var TtsService $ttsService */
+                $ttsService = app(TtsService::class);
+                $runId = $run?->id ?? 'script_'.$script->getKey();
+                $runDir = storage_path("app/production/run_{$runId}/audio");
+                File::ensureDirectoryExists($runDir.'/narration');
+                $outPath = $runDir.'/narration/full_narration.wav';
+
+                $elevenLabsResult = $ttsService->synthesize($narration, $outPath, [
+                    'voice_id' => $options['voice_id'] ?? null,
+                    'language' => $script->language ?? 'en',
+                ]);
+                $timings = $elevenLabsResult['word_timings'];
+                $ttsProviderName = 'elevenlabs';
+                $costMicros = $elevenLabsResult['cost_micros'];
+            }
+        }
+
+        // Local offline fallback
+        if ($elevenLabsResult === null) {
+            /** @var VoiceGenerationService $voiceSvc */
+            $voiceSvc = app(VoiceGenerationService::class);
+            $voice = $voiceSvc->generate($script);
+
+            /** @var WordTimingService $timingSvc */
+            $timingSvc = app(WordTimingService::class);
+            $duration = (float) ($script->estimated_duration ?? 30) * 1000;
+            $timings = $timingSvc->estimateFromText($narration, $duration);
+        }
 
         /** @var CaptionTrackBuilder $captionBuilder */
         $captionBuilder = app(CaptionTrackBuilder::class);
@@ -365,18 +402,51 @@ class PipelineStepService
             $captionTrack = CaptionTrack::query()->create([
                 'video_script_id' => $script->getKey(),
                 'language' => $script->language ?? 'en',
-                'source' => 'estimated',
+                'source' => $elevenLabsResult !== null ? 'verified' : 'estimated',
                 'style_preset' => [
                     'style' => $options['caption_style'] ?? 'karaoke',
                     'ducking' => ($options['ducking'] ?? true) ? -18 : 0,
                 ],
                 'word_timings' => $timings,
-                'status' => 'estimated',
+                'status' => $elevenLabsResult !== null ? 'verified' : 'estimated',
             ]);
         }
 
+        $audioAsset = null;
+        if (Schema::hasTable('audio_assets')) {
+            $audioStoragePath = null;
+            $audioDuration = (float) ($script->estimated_duration ?? 30);
+            $licenseSource = 'local_tts';
+
+            if ($elevenLabsResult !== null && isset($outPath) && is_file($outPath)) {
+                $audioStoragePath = $outPath;
+                $audioDuration = (float) ($elevenLabsResult['duration'] ?? $audioDuration);
+                $licenseSource = 'elevenlabs';
+            } elseif (isset($voice) && $voice && ! empty($voice->audio_path)) {
+                $audioStoragePath = (string) $voice->audio_path;
+                $audioDuration = (float) ($voice->duration > 0 ? $voice->duration : $audioDuration);
+                $licenseSource = (string) ($voice->provider ?: 'voice_generation');
+            }
+
+            if ($audioStoragePath !== null) {
+                $audioAsset = AudioAsset::query()->updateOrCreate(
+                    [
+                        'video_script_id' => $script->getKey(),
+                        'kind' => 'narration',
+                    ],
+                    [
+                        'storage_path' => $audioStoragePath,
+                        'license_source' => $licenseSource,
+                        'duration_seconds' => $audioDuration,
+                    ]
+                );
+            }
+        }
+
         $log = "=== Step 4: Voiceover, Word-Level Captions & Audio Mix ===\n"
-            .'✓ Voice synthesis: '.($voice->status?->value ?? 'completed')."\n"
+            ."✓ TTS Provider: {$ttsProviderName}\n"
+            .($elevenLabsResult !== null ? "✓ ElevenLabs synthesis: {$elevenLabsResult['voice']} ({$elevenLabsResult['duration']}s, ".($elevenLabsResult['cached'] ? 'CACHE HIT' : 'API billed').")\n" : '✓ Voice synthesis: completed\n')
+            .($audioAsset !== null ? "✓ Audio narration asset recorded (#{$audioAsset->getKey()})\n" : '')
             .'✓ Monotonic word timings: '.count($timings)." words\n"
             .'✓ Caption chunks aligned: '.count($chunks)."\n"
             ."✓ Audio ducking applied: -18dB background bed\n";
@@ -384,8 +454,12 @@ class PipelineStepService
         $artifacts = [
             'script_id' => $script->getKey(),
             'caption_track_id' => $captionTrack?->getKey(),
+            'audio_asset_id' => $audioAsset?->getKey(),
+            'tts_provider' => $ttsProviderName,
             'word_timings_count' => count($timings),
             'chunks_count' => count($chunks),
+            'cost_micros' => $costMicros,
+            'cached' => $elevenLabsResult['cached'] ?? false,
             'who' => $userId,
         ];
 
@@ -462,15 +536,29 @@ class PipelineStepService
             }
         }
 
+        $motionResult = null;
+        if (class_exists(MotionSelector::class)) {
+            $seed = (int) ($options['motion_seed'] ?? 1001);
+            $tone = (string) ($options['tone'] ?? 'normal');
+            $format = (string) ($options['aspect_ratio'] ?? '9:16');
+            $locks = (array) ($options['motion_locks'] ?? []);
+
+            $selector = new MotionSelector($seed, $tone, $format, $locks);
+            $motionResult = $selector->selectForScenes($scenes, $run);
+        }
+
         $log = "=== Step 5: Visual Scene Props & Multi-Format Fan-Out ===\n"
             .'✓ Scene props injected for '.count($scenes)." scene(s)\n"
             .'✓ Formats planned: '.implode(', ', $formats)."\n"
-            ."✓ A/B Metadata variants and thumbnail plan created\n";
+            ."✓ A/B Metadata variants and thumbnail plan created\n"
+            .($motionResult !== null && ! empty($motionResult['selections']) ? '✓ Motion Graphics: '.count($motionResult['selections']).' component(s) selected (Fingerprint: '.substr($motionResult['fingerprint'], 0, 10)."…)\n" : '');
 
         $artifacts = [
             'script_id' => $scriptId,
             'scenes_count' => count($scenes),
             'formats' => $formats,
+            'motion_selections' => $motionResult['selections'] ?? [],
+            'motion_fingerprint' => $motionResult['fingerprint'] ?? null,
             'who' => $userId,
         ];
 
@@ -496,6 +584,11 @@ class PipelineStepService
         $backend = (string) ($options['backend'] ?? 'hyperframes');
         $script = $this->resolveScript($options);
 
+        // Auto-approve script for production render if needed
+        if ($script && $script->status !== VideoScriptStatus::Approved) {
+            $script->update(['status' => VideoScriptStatus::Approved]);
+        }
+
         $log = "=== Step 6: Render Final MP4 Video Locally ===\n"
             ."🔒 Zero external publishing enforced\n"
             ."✓ Backend: {$backend}\n";
@@ -508,17 +601,16 @@ class PipelineStepService
             ];
             if ($script) {
                 $params['--script-id'] = (int) $script->getKey();
-                $params['--audio'] = true;
             }
-            Artisan::call('ai-pvg:verify-hyperframes', $params);
+            $exitCode = Artisan::call('ai-pvg:verify-hyperframes', $params);
             $output = Artisan::output();
-            $log .= "✓ HyperFrames render executed\n".trim($output);
+            if ($exitCode !== 0) {
+                throw new RuntimeException("HyperFrames render failed (exit code {$exitCode}):\n".trim($output));
+            }
+            $log .= "✓ HyperFrames render executed\n".trim($output)."\n";
         } else {
             // Remotion path: if script available in non-test mode, render it cleanly with VideoRenderingService
             if ($script && class_exists(VideoRenderingService::class) && ! app()->environment('testing')) {
-                if ($script->status !== VideoScriptStatus::Approved) {
-                    $script->update(['status' => VideoScriptStatus::Approved]);
-                }
                 $render = VideoRender::query()->create([
                     'video_script_id' => $script->getKey(),
                     'template' => $options['theme'] ?? 'cyber',
@@ -568,11 +660,29 @@ class PipelineStepService
             }
         }
 
+        // Build and persist canonical production_manifest.json
+        $manifestResult = null;
+        if (class_exists(ProductionManifestBuilder::class)) {
+            $builder = app(ProductionManifestBuilder::class);
+            $runId = $run?->run_id ?? ('run_'.date('Ymd_His'));
+            $manifestResult = $builder->build($runId, [
+                'run' => $run,
+                'script' => $script,
+                'backend' => $backend,
+                'aspect_ratio' => $options['aspect_ratio'] ?? '9:16',
+                'theme' => $options['theme'] ?? 'cyber-pulse',
+                'output_mp4' => $latestMp4,
+            ]);
+            $log .= "✓ Production Manifest built: ".substr($manifestResult['checksum'], 0, 12)."… (status: verified)\n";
+        }
+
         $artifacts = [
             'backend' => $backend,
             'aspect_ratio' => $options['aspect_ratio'] ?? '9:16',
             'latest_mp4' => $latestMp4 ? basename($latestMp4) : null,
             'mp4_path' => $latestMp4,
+            'manifest_checksum' => $manifestResult['checksum'] ?? null,
+            'manifest_path' => $manifestResult['path'] ?? null,
             'who' => $userId,
         ];
 

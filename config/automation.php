@@ -279,4 +279,22 @@ return [
         'history_window' => (int) env('AUTOMATION_AVATAR_HISTORY_WINDOW', 200),
         'similarity_min_diff_categories' => (int) env('AUTOMATION_AVATAR_SIMILARITY_MIN_DIFF', 4),
     ],
+
+    'audio' => [
+        'provider' => env('AUTOMATION_AUDIO_PROVIDER', 'local'), // local | elevenlabs
+        'elevenlabs' => [
+            'enabled' => (bool) env('AUTOMATION_AUDIO_ELEVENLABS_ENABLED', false),
+            'feature_flag' => env('AUTOMATION_AUDIO_ELEVENLABS_FEATURE_FLAG', 'audio.elevenlabs.enabled'),
+            'api_key' => env('ELEVENLABS_API_KEY'),
+            'base_url' => env('ELEVENLABS_BASE_URL', 'https://api.elevenlabs.io'),
+            'default_voice_id' => env('ELEVENLABS_DEFAULT_VOICE_ID', '21m00Tcm4TlvDq8ikWAM'),
+            'default_model_id' => env('ELEVENLABS_DEFAULT_MODEL_ID', 'eleven_multilingual_v2'),
+            'timeout_seconds' => 30,
+            'cost_per_char_micros' => (int) env('ELEVENLABS_COST_PER_CHAR_MICROS', 300),
+            'sfx_enabled' => (bool) env('AUTOMATION_AUDIO_ELEVENLABS_SFX_ENABLED', false),
+            'music_enabled' => (bool) env('AUTOMATION_AUDIO_ELEVENLABS_MUSIC_ENABLED', false),
+            'sfx_cache_dir' => storage_path('app/audio_library/sfx'),
+            'music_cache_dir' => storage_path('app/audio_library/music'),
+        ],
+    ],
 ];

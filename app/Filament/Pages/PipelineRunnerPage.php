@@ -2,14 +2,17 @@
 
 namespace App\Filament\Pages;
 
+use App\Enums\MotionLicenseStatus;
 use App\Enums\UserRole;
 use App\Models\CaptionTrack;
+use App\Models\MotionComponent;
 use App\Models\News;
 use App\Models\NewsCategory;
 use App\Models\NewsScore;
 use App\Models\NewsSource;
 use App\Models\PipelineRun;
 use App\Models\PipelineRunStage;
+use App\Models\ProductionManifest;
 use App\Models\SceneAsset;
 use App\Models\ScriptFactCheck;
 use App\Models\ScriptVariant;
@@ -17,7 +20,10 @@ use App\Models\StoryCluster;
 use App\Models\User;
 use App\Models\VideoScript;
 use App\Models\VoiceGeneration;
+use App\Services\Motion\MotionLibrary;
 use App\Services\Pipeline\PipelineStepService;
+use App\Services\Production\ProductionManifestBuilder;
+use App\Services\Production\ProductionPreflight;
 use BackedEnum;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
@@ -121,6 +127,15 @@ class PipelineRunnerPage extends Page
 
     /** @var bool Step 5 Generate A/B thumbnails and metadata. */
     public bool $step5Thumbnails = true;
+
+    /** @var string Step 5 Motion variation level: 'low' | 'medium' | 'high'. */
+    public string $step5VariationLevel = 'medium';
+
+    /** @var int Step 5 Motion PRNG Seed. */
+    public int $step5MotionSeed = 1001;
+
+    /** @var array<string, string> Step 5 Locked motion components [category => component_key]. */
+    public array $step5MotionLocks = [];
 
     /** @var string Step 6 Render backend: 'hyperframes' (default) or 'remotion'. */
     public string $step6Backend = 'hyperframes';
@@ -650,6 +665,10 @@ class PipelineRunnerPage extends Page
                 'formats' => $this->step5Formats,
                 'thumbnails' => $this->step5Thumbnails,
                 'backend' => $this->step6Backend,
+                'motion_seed' => $this->step5MotionSeed,
+                'variation_level' => $this->step5VariationLevel,
+                'motion_locks' => $this->step5MotionLocks,
+                'aspect_ratio' => $this->step6AspectRatio,
             ];
 
             $result = $service->runStep5($options, $run, auth()->id());
@@ -687,6 +706,33 @@ class PipelineRunnerPage extends Page
             /** @var PipelineStepService $service */
             $service = app(PipelineStepService::class);
             $run = $this->resolveCurrentRun($service);
+
+            $script = $this->resolveSelectedScript();
+
+            // Preflight check gate before render execution when a script is present
+            if ($script !== null) {
+                /** @var ProductionPreflight $preflight */
+                $preflight = app(ProductionPreflight::class);
+                $check = $preflight->check([
+                    'script_id' => $script->id,
+                    'cluster_id' => $this->selectedClusterId,
+                    'run' => $run,
+                    'aspect_ratio' => $this->step6AspectRatio,
+                    'backend' => $this->step6Backend,
+                ]);
+
+                if (! $check['ready_to_render']) {
+                    $lines = array_map(fn ($m) => "• [Step {$m['step']}: {$m['step_name']}] {$m['label']} — {$m['details']}", $check['missing_data']);
+                    $this->lastOutput = "=== Step 6 Preflight: BLOCKED ===\n".implode("\n", $lines);
+                    Notification::make()
+                        ->title('Step 6 Blocked: Preflight Failed')
+                        ->body('Missing required data from earlier steps. See output log for details.')
+                        ->danger()
+                        ->send();
+
+                    return;
+                }
+            }
 
             $options = [
                 'backend' => $this->step6Backend,
@@ -729,14 +775,111 @@ class PipelineRunnerPage extends Page
         $this->assertAdmin();
 
         try {
-            Artisan::call('ai-pvg:verify-mp4');
-            $output = Artisan::output();
-            $this->lastOutput = "=== Preflight Diagnostic Check ===\n".trim($output);
+            /** @var ProductionPreflight $preflight */
+            $preflight = app(ProductionPreflight::class);
+            $run = $this->currentRunId && Schema::hasTable('pipeline_runs')
+                ? PipelineRun::query()->where('run_id', $this->currentRunId)->first()
+                : null;
 
-            Notification::make()->title('Preflight Check Complete')->body('Remotion runtime, Chrome, FFmpeg, and FFprobe verified.')->success()->send();
+            $check = $preflight->check([
+                'script_id' => $this->selectedScriptId,
+                'cluster_id' => $this->selectedClusterId,
+                'run' => $run,
+                'aspect_ratio' => $this->step6AspectRatio,
+                'backend' => $this->step6Backend,
+            ]);
+
+            $log = "=== Production Preflight Inspection ===\n";
+            foreach ($check['passed_checks'] as $p) {
+                $log .= "✓ [Step {$p['step']}] {$p['label']}: {$p['details']}\n";
+            }
+            if (! empty($check['missing_data'])) {
+                $log .= "\n⚠️ Missing Requirements:\n";
+                foreach ($check['missing_data'] as $m) {
+                    $log .= "✗ [Step {$m['step']}: {$m['step_name']}] {$m['label']}: {$m['details']}\n";
+                }
+            } else {
+                $log .= "\n✓ All stages passed data map verification. READY TO RENDER.\n";
+            }
+
+            try {
+                Artisan::call('ai-pvg:verify-mp4');
+                $log .= "\n✓ Verification: ".trim(Artisan::output());
+            } catch (Throwable) {
+                // Verify command optional
+            }
+
+            $this->lastOutput = $log;
+
+            if ($check['ready_to_render']) {
+                Notification::make()->title('Preflight: Ready to Render')->body('All required data and safety locks verified.')->success()->send();
+            } else {
+                Notification::make()->title('Preflight: Missing Requirements')->body(count($check['missing_data']).' requirement(s) need completion before rendering.')->warning()->send();
+            }
         } catch (Throwable $e) {
             $this->lastOutput = '✗ Preflight Failed: '.$e->getMessage();
             Notification::make()->title('Preflight Failed')->body($e->getMessage())->danger()->send();
+        }
+    }
+
+    public function reRollMotion(): void
+    {
+        $this->step5MotionSeed = random_int(1000, 99999);
+        Notification::make()
+            ->title('Motion Re-Rolled')
+            ->body("New PRNG Seed: {$this->step5MotionSeed}")
+            ->info()
+            ->send();
+    }
+
+    public function toggleMotionLock(string $category, string $componentKey): void
+    {
+        if (isset($this->step5MotionLocks[$category]) && $this->step5MotionLocks[$category] === $componentKey) {
+            unset($this->step5MotionLocks[$category]);
+            Notification::make()->title("Unlocked {$category}")->info()->send();
+        } else {
+            $this->step5MotionLocks[$category] = $componentKey;
+            Notification::make()->title("Locked {$category} to {$componentKey}")->success()->send();
+        }
+    }
+
+    /** @return array<string, mixed> */
+    public function step5MotionData(): array
+    {
+        try {
+            if (! Schema::hasTable('motion_components')) {
+                return ['available' => [], 'counts' => ['original' => 0, 'cleared' => 0, 'reference_only' => 0]];
+            }
+
+            $components = MotionComponent::query()->get();
+            $counts = [
+                'original' => $components->where('license_status', MotionLicenseStatus::Original)->count(),
+                'cleared' => $components->where('license_status', MotionLicenseStatus::Cleared)->count(),
+                'reference_only' => $components->where('license_status', MotionLicenseStatus::ReferenceOnly)->count(),
+            ];
+
+            return [
+                'available' => $components->where('status', \App\Enums\MotionComponentStatus::Approved)->values()->all(),
+                'counts' => $counts,
+            ];
+        } catch (Throwable) {
+            return ['available' => [], 'counts' => ['original' => 0, 'cleared' => 0, 'reference_only' => 0]];
+        }
+    }
+
+    /** @return array<string, mixed>|null */
+    public function step6ManifestData(): ?array
+    {
+        try {
+            if (! $this->currentRunId || ! Schema::hasTable('production_manifests')) {
+                return null;
+            }
+
+            $manifest = ProductionManifest::query()->where('run_id', $this->currentRunId)->first();
+
+            return $manifest?->manifest_data;
+        } catch (Throwable) {
+            return null;
         }
     }
 

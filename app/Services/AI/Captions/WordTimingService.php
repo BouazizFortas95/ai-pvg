@@ -6,56 +6,81 @@ use RuntimeException;
 
 class WordTimingService
 {
+    /**
+     * Estimate monotonic word-level timings from raw text distributed across the available duration.
+     *
+     * @return list<array{index: int, word: string, start_ms: int, end_ms: int, source: string}>
+     */
     public function estimateFromText(string $text, float $totalDurationMs): array
     {
-        $words = array_filter(preg_split('/\s+/', $text));
+        $words = array_values(array_filter(preg_split('/\s+/', trim($text))));
         $count = count($words);
         if ($count === 0) {
             return [];
         }
 
-        $perWordMs = max(300.0, min(1200.0, $totalDurationMs / $count));
+        // Each word takes an equal slice of duration, capped at 1200ms for short texts
+        $slice = $totalDurationMs / $count;
+        if ($slice > 1200.0) {
+            $slice = 1200.0;
+        }
+
+        // Guarantee at least 1ms per word
+        $slice = max(1.0, $slice);
+        $effectiveDurationMs = max($totalDurationMs, $count * $slice);
+
         $timings = [];
-        $currentMs = 0.0;
+        $currentMs = 0;
 
         foreach ($words as $index => $word) {
             $startMs = $currentMs;
-            $endMs = min($totalDurationMs, $currentMs + $perWordMs);
+            $targetEndMs = (int) round(($index + 1) * $slice);
+            // Ensure end_ms is strictly greater than start_ms
+            $endMs = max($startMs + 1, $targetEndMs);
+
             $timings[] = [
                 'index' => $index,
                 'word' => $word,
-                'start_ms' => (int) round($startMs),
-                'end_ms' => (int) round($endMs),
+                'start_ms' => $startMs,
+                'end_ms' => $endMs,
                 'source' => 'estimated',
             ];
             $currentMs = $endMs;
         }
 
-        $this->assertMonotonic($timings, $totalDurationMs);
+        $this->assertMonotonic($timings, $effectiveDurationMs);
 
         return $timings;
     }
 
+    /**
+     * Build monotonic verified timings from TTS metadata.
+     *
+     * @param list<array<string, mixed>> $metadataWords
+     * @return list<array{index: int, word: string, start_ms: int, end_ms: int, source: string}>
+     */
     public function verifiedFromTtsMetadata(array $metadataWords): array
     {
         $timings = [];
+        $prevEnd = 0;
+
         foreach ($metadataWords as $index => $entry) {
-            $startMs = (int) ($entry['start_ms'] ?? 0);
-            $endMs = (int) ($entry['end_ms'] ?? $startMs);
+            $rawStart = (int) ($entry['start_ms'] ?? $prevEnd);
+            $startMs = max($prevEnd, $rawStart);
+            $rawEnd = (int) ($entry['end_ms'] ?? ($startMs + 50));
+            $endMs = max($startMs + 1, $rawEnd);
+
             $timings[] = [
                 'index' => $index,
-                'word' => $entry['word'] ?? '',
+                'word' => (string) ($entry['word'] ?? ''),
                 'start_ms' => $startMs,
                 'end_ms' => $endMs,
                 'source' => 'verified',
             ];
+
+            $prevEnd = $endMs;
         }
-        if (count($timings) > 0) {
-            $lastEnd = $timings[count($timings) - 1]['end_ms'];
-            if ($lastEnd > 0 && array_sum(array_column($timings, 'start_ms')) !== 0) {
-                // verified data accepted without overriding estimated totals
-            }
-        }
+
         $this->assertMonotonic($timings, PHP_FLOAT_MAX);
 
         return $timings;

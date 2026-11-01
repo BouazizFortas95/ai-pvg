@@ -999,6 +999,45 @@
                 </div>
             </div>
 
+            {{-- Motion Graphics Pack Picker & PRNG Seeding --}}
+            @php
+                $motionData = $this->step5MotionData();
+            @endphp
+            <div class="mt-4 p-4 rounded-xl border border-gray-800 bg-gray-950/60">
+                <div class="flex items-center justify-between mb-3">
+                    <div class="flex items-center gap-2">
+                        <span class="text-sm font-semibold text-gray-200">✨ Motion Graphics Library &amp; Seeding</span>
+                        <span class="text-xs text-gray-400">· Deterministic HyperFrames Component Selector</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <x-filament::badge color="success">{{ $motionData['counts']['original'] }} Original</x-filament::badge>
+                        <x-filament::badge color="info">{{ $motionData['counts']['cleared'] }} Cleared</x-filament::badge>
+                        <x-filament::badge color="warning">{{ $motionData['counts']['reference_only'] }} Ref Only</x-filament::badge>
+                    </div>
+                </div>
+
+                <div class="pvg-controls-grid">
+                    <div class="pvg-field-group">
+                        <label class="pvg-field-label">PRNG Motion Seed</label>
+                        <div class="flex items-center gap-2">
+                            <input type="number" wire:model.live="step5MotionSeed" class="pvg-input font-mono text-cyan-300" @if($s5Locked) disabled @endif>
+                            <x-filament::button color="gray" size="sm" icon="heroicon-m-arrow-path" wire:click="reRollMotion" :disabled="$s5Locked">
+                                Re-Roll
+                            </x-filament::button>
+                        </div>
+                    </div>
+
+                    <div class="pvg-field-group">
+                        <label class="pvg-field-label">Variation Level</label>
+                        <select wire:model.live="step5VariationLevel" class="pvg-select" @if($s5Locked) disabled @endif>
+                            <option value="low">Subdued / Low Variation (Consistent Corporate/News)</option>
+                            <option value="medium">Balanced / Medium Variation (Recommended)</option>
+                            <option value="high">Dynamic / High Energy (Maximum Motion Variation)</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
             <div class="pvg-card-footer">
                 <div class="text-xs text-gray-400">
                     Scenes: <strong>{{ $m5['scenes_count'] }}</strong> · Formats: <strong>{{ $m5['formats'] }}</strong>
@@ -1132,6 +1171,23 @@
                             </video>
                         </div>
                     @endif
+                </div>
+            @endif
+
+            {{-- Production Run Manifest --}}
+            @php
+                $manifestData = $this->step6ManifestData();
+            @endphp
+            @if($manifestData)
+                <div class="mt-3 p-3 rounded-lg border border-emerald-900/60 bg-emerald-950/20 flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <span class="text-emerald-400 font-bold">📄</span>
+                        <div class="text-xs">
+                            <div class="font-semibold text-gray-200">Production Manifest Verified: <code class="font-mono text-emerald-300">{{ substr($manifestData['checksum_sha256'] ?? '', 0, 16) }}…</code></div>
+                            <div class="text-gray-400">Schema v{{ $manifestData['schema_version'] ?? '1.0.0' }} · Run: {{ $manifestData['run_id'] ?? '' }} · Stored in <code class="text-gray-300">manifest/production_manifest.json</code></div>
+                        </div>
+                    </div>
+                    <x-filament::badge color="success">✓ Verified &amp; Replay-Ready</x-filament::badge>
                 </div>
             @endif
 

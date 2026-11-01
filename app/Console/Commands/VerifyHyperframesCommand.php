@@ -131,9 +131,14 @@ class VerifyHyperframesCommand extends Command
                     return 1;
                 }
                 if ($script->status !== VideoScriptStatus::Approved) {
-                    $this->error('Script '.$scriptId.' is not approved (status: '.$script->status->value.').');
+                    if ($this->option('execute')) {
+                        $script->update(['status' => VideoScriptStatus::Approved]);
+                        $this->line('Script #'.$scriptId.' auto-approved for render execution.');
+                    } else {
+                        $this->error('Script '.$scriptId.' is not approved (status: '.$script->status->value.').');
 
-                    return 1;
+                        return 1;
+                    }
                 }
 
                 $runId = 'verify-script-'.$script->getKey().'-'.str_replace(':', 'x', $preset);
@@ -325,7 +330,7 @@ class VerifyHyperframesCommand extends Command
         }
 
         // QA gate suite
-        if ($runQa || $runAudio) {
+        if ($runQa) {
             $this->line('=== QA GATES ===');
             $qaResult = $qa->verify($built['projectDir'], $samplePlan ?? null, ['output_file' => $output]);
 

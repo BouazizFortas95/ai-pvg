@@ -478,12 +478,19 @@ class HyperFramesCompositionBuilder
         $words = [];
 
         foreach ($timings as $timing) {
-            if (! is_array($timing) || ! isset($timing['word'], $timing['startMs'], $timing['endMs'])) {
+            if (! is_array($timing) || ! isset($timing['word'])) {
                 continue;
             }
 
-            $start = max(0.0, ((float) $timing['startMs']) / 1000);
-            $end = min($duration, ((float) $timing['endMs']) / 1000);
+            $rawStart = $timing['startMs'] ?? $timing['start_ms'] ?? null;
+            $rawEnd = $timing['endMs'] ?? $timing['end_ms'] ?? null;
+
+            if ($rawStart === null || $rawEnd === null) {
+                continue;
+            }
+
+            $start = max(0.0, ((float) $rawStart) / 1000);
+            $end = min($duration, ((float) $rawEnd) / 1000);
 
             if ($end <= $start) {
                 continue;
@@ -572,19 +579,27 @@ class HyperFramesCompositionBuilder
         $words = [];
 
         foreach ($wordTimings as $timing) {
-            if (! is_array($timing) || ! isset($timing['word'], $timing['startMs'], $timing['endMs'])) {
+            if (! is_array($timing)) {
                 continue;
             }
 
-            $start = max(0.0, ((float) $timing['startMs']) / 1000);
-            $end = min($duration, ((float) $timing['endMs']) / 1000);
+            $rawWord = $timing['word'] ?? $timing['text'] ?? null;
+            $rawStart = $timing['startMs'] ?? $timing['start_ms'] ?? null;
+            $rawEnd = $timing['endMs'] ?? $timing['end_ms'] ?? null;
+
+            if ($rawWord === null || $rawStart === null || $rawEnd === null) {
+                continue;
+            }
+
+            $start = max(0.0, ((float) $rawStart) / 1000);
+            $end = min($duration, ((float) $rawEnd) / 1000);
 
             if ($end <= $start) {
                 continue;
             }
 
             $words[] = [
-                'word' => (string) $timing['word'],
+                'word' => (string) $rawWord,
                 'start' => round($start, 3),
                 'end' => round($end, 3),
             ];
@@ -783,51 +798,94 @@ class HyperFramesCompositionBuilder
      */
     protected function resolveAudio(VideoScript $script): array
     {
-        if (! class_exists(AudioAsset::class) || ! Schema::hasTable('audio_assets')) {
-            return [];
-        }
-
-        $all = AudioAsset::query()
-            ->where('video_script_id', $script->getKey())
-            ->orderBy('id')
-            ->get();
-
         $resolved = [];
         $hasVoice = false;
         $hasMusic = false;
 
-        foreach ($all as $audio) {
-            $storagePath = (string) $audio->storage_path;
-            $fullPath = is_file(storage_path('app/public/'.$storagePath))
-                ? storage_path('app/public/'.$storagePath)
-                : (is_file(storage_path('app/'.$storagePath)) ? storage_path('app/'.$storagePath) : $storagePath);
+        if (class_exists(AudioAsset::class) && Schema::hasTable('audio_assets')) {
+            $all = AudioAsset::query()
+                ->where('video_script_id', $script->getKey())
+                ->orderBy('id')
+                ->get();
 
-            if (! is_file($fullPath)) {
-                continue;
+            foreach ($all as $audio) {
+                $storagePath = (string) $audio->storage_path;
+                $fullPath = $this->resolveAudioPath($storagePath);
+
+                if ($fullPath === null) {
+                    continue;
+                }
+
+                $kind = strtolower((string) ($audio->kind ?? 'narration'));
+                $isVoice = str_contains($kind, 'voice') || str_contains($kind, 'narration');
+                $isMusic = str_contains($kind, 'music') || str_contains($kind, 'background');
+
+                if ($isVoice && ! $hasVoice) {
+                    $hasVoice = true;
+                    $resolved[] = [
+                        'id' => (int) $audio->getKey(),
+                        'kind' => $kind,
+                        'source_path' => $fullPath,
+                    ];
+                } elseif ($isMusic && ! $hasMusic) {
+                    $hasMusic = true;
+                    $resolved[] = [
+                        'id' => (int) $audio->getKey(),
+                        'kind' => $kind,
+                        'source_path' => $fullPath,
+                    ];
+                }
             }
+        }
 
-            $kind = strtolower((string) ($audio->kind ?? 'narration'));
-            $isVoice = str_contains($kind, 'voice') || str_contains($kind, 'narration');
-            $isMusic = str_contains($kind, 'music') || str_contains($kind, 'background');
+        // Fallback to VoiceGeneration if no voice narration was found in audio_assets
+        if (! $hasVoice && class_exists(\App\Models\VoiceGeneration::class) && Schema::hasTable('voice_generations')) {
+            $vg = \App\Models\VoiceGeneration::query()
+                ->where('video_script_id', $script->getKey())
+                ->where('status', 'completed')
+                ->latest()
+                ->first();
 
-            if ($isVoice && ! $hasVoice) {
-                $hasVoice = true;
-                $resolved[] = [
-                    'id' => (int) $audio->getKey(),
-                    'kind' => $kind,
-                    'source_path' => $fullPath,
-                ];
-            } elseif ($isMusic && ! $hasMusic) {
-                $hasMusic = true;
-                $resolved[] = [
-                    'id' => (int) $audio->getKey(),
-                    'kind' => $kind,
-                    'source_path' => $fullPath,
-                ];
+            if ($vg && ! empty($vg->audio_path)) {
+                $candPath = $this->resolveAudioPath((string) $vg->audio_path);
+                if ($candPath !== null) {
+                    $hasVoice = true;
+                    $resolved[] = [
+                        'id' => (int) $vg->getKey(),
+                        'kind' => 'narration',
+                        'source_path' => $candPath,
+                    ];
+                }
             }
         }
 
         return $resolved;
+    }
+
+    protected function resolveAudioPath(string $storagePath): ?string
+    {
+        if (trim($storagePath) === '') {
+            return null;
+        }
+
+        $clean = str_replace(['public/', 'public\\'], '', $storagePath);
+
+        $candidates = [
+            $storagePath,
+            storage_path('app/'.$storagePath),
+            storage_path('app/public/'.$storagePath),
+            storage_path('app/public/'.$clean),
+            public_path($clean),
+            base_path($storagePath),
+        ];
+
+        foreach ($candidates as $cand) {
+            if (is_file($cand)) {
+                return $cand;
+            }
+        }
+
+        return null;
     }
 
     /**
