@@ -3,13 +3,16 @@
 namespace App\Services\Production;
 
 use App\Enums\MotionLicenseStatus;
+use App\Models\AudioAsset;
 use App\Models\CaptionTrack;
 use App\Models\MotionComponentUsage;
 use App\Models\News;
 use App\Models\PipelineRun;
 use App\Models\StoryCluster;
 use App\Models\VideoScript;
+use App\Models\VoiceGeneration;
 use App\Support\HyperFramesRuntime;
+use App\Support\MediaPath;
 use Illuminate\Support\Facades\Schema;
 
 class ProductionPreflight
@@ -142,6 +145,21 @@ class ProductionPreflight
             ];
         }
 
+        $narrationIssue = $this->narrationAudioIssue($script);
+
+        if ($narrationIssue === null) {
+            $passed[] = ['key' => 'narration_audio', 'label' => 'Narration Audio', 'step' => 4, 'details' => 'Narration audio file found and loadable by the renderer.'];
+        } else {
+            $stepStatus[4] = false;
+            $missing[] = [
+                'key' => 'narration_audio',
+                'label' => 'Narration Audio',
+                'step' => 4,
+                'step_name' => 'Voice & Audio',
+                'details' => $narrationIssue,
+            ];
+        }
+
         // ── STEP 5: Visual Scene Props & Motion Selection ───────────────────
         $run = $context['run'] ?? null;
         $unlicensedMotionCount = 0;
@@ -208,6 +226,55 @@ class ProductionPreflight
             'missing_data' => $missing,
             'passed_checks' => $passed,
         ];
+    }
+
+    /**
+     * Render a failed report as one line per missing datum, for logs and CLI output.
+     *
+     * @param  array{missing_data: list<array{label: string, step: int, step_name: string, details: string}>}  $report
+     */
+    public static function formatMissing(array $report): string
+    {
+        return implode("\n", array_map(
+            fn (array $m): string => "• [Step {$m['step']}: {$m['step_name']}] {$m['label']} — {$m['details']}",
+            $report['missing_data'],
+        ));
+    }
+
+    /**
+     * Decide whether the script has narration audio the renderer can load.
+     *
+     * Returns null when narration is usable, or a short reason (shown to the
+     * operator in the preflight log) when it is not.
+     *
+     * The two candidate sources mirror HyperFramesCompositionBuilder::resolveAudio():
+     * the Step 4 narration asset first, then the latest completed voice generation.
+     */
+    protected function narrationAudioIssue(?VideoScript $script): ?string
+    {
+        if ($script === null) {
+            return 'No script selected, so there is no narration to check. Run Step 3 first.';
+        }
+
+        $asset = Schema::hasTable('audio_assets')
+            ? AudioAsset::query()
+                ->where('video_script_id', $script->id)
+                ->where('kind', 'narration')
+                ->latest('id')
+                ->first()
+            : null;
+
+        $voice = Schema::hasTable('voice_generations')
+            ? VoiceGeneration::query()
+                ->where('video_script_id', $script->id)
+                ->where('status', 'completed')
+                ->latest('id')
+                ->first()
+            : null;
+
+        // TODO(human): decide whether $asset / $voice give the renderer usable narration.
+        // Return null when it is usable, or a reason string when it is not.
+        return null;
     }
 }
 

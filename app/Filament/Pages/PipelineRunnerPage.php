@@ -722,8 +722,7 @@ class PipelineRunnerPage extends Page
                 ]);
 
                 if (! $check['ready_to_render']) {
-                    $lines = array_map(fn ($m) => "• [Step {$m['step']}: {$m['step_name']}] {$m['label']} — {$m['details']}", $check['missing_data']);
-                    $this->lastOutput = "=== Step 6 Preflight: BLOCKED ===\n".implode("\n", $lines);
+                    $this->lastOutput = "=== Step 6 Preflight: BLOCKED ===\n".ProductionPreflight::formatMissing($check);
                     Notification::make()
                         ->title('Step 6 Blocked: Preflight Failed')
                         ->body('Missing required data from earlier steps. See output log for details.')
@@ -739,6 +738,7 @@ class PipelineRunnerPage extends Page
                 'aspect_ratio' => $this->step6AspectRatio,
                 'theme' => $this->step6Theme,
                 'script_id' => $this->selectedScriptId,
+                'cluster_id' => $this->selectedClusterId,
             ];
 
             if (config('queue.default') === 'sync') {

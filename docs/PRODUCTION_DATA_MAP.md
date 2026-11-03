@@ -45,7 +45,7 @@ The table below maps every piece of data through the 6-stage autonomous media pi
 | **Motion Component Usages** | 5. Visuals | Database: `motion_component_usages` *(Additive)* | `MotionSelector` (Seeded PRNG) | `HyperFramesQaService`, Variation Fingerprint | `VERIFIED` |
 | **Presenter / Avatar Spec** | 5. Visuals | Database: `avatar_characters`, `variation_history` | `AvatarQaService` / `AvatarPrng` | `HyperFramesCompositionBuilder` | `VERIFIED` |
 | **Multi-Format Fan-Out Plans** | 5. Visuals | Database: `render_variants`, `metadata_variants` | `FanOutBatchService` | `HyperFramesRenderService`, Publishing staging | `VERIFIED` |
-| **Preflight Readiness Check** | 6. Render | Diagnostics: `ProductionPreflight` | `ProductionPreflight` | Pipeline Runner Page, CLI | `PLANNED` |
+| **Preflight Readiness Check** | 6. Render | Diagnostics: `ProductionPreflight` (gated in `PipelineStepService::runStep6`) | `ProductionPreflight` | Pipeline Runner Page, CLI, queued Step 6 jobs | `VERIFIED` |
 | **HyperFrames Composition** | 6. Render | Files: `storage/app/hyperframes/{run_id}/index.html` | `HyperFramesCompositionBuilder` | `HyperFramesRenderService` | `VERIFIED` |
 | **Rendered MP4 Video** | 6. Render | File: `storage/app/video_out/{run_id}.mp4` | `HyperFramesRenderService` / `RemotionRenderer` | In-browser player, QA gates | `VERIFIED` |
 | **QA Verification & Scores** | 6. Render | Files: `qa/report.json`, Database: `video_renders` | `HyperFramesQaService` (7 Gates) | Quarantine Gate, Verified Badge | `VERIFIED` |

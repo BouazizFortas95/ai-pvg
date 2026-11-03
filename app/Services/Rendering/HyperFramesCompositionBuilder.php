@@ -8,6 +8,7 @@ use App\Models\SceneAsset;
 use App\Models\VideoScript;
 use App\Services\Rendering\EditPlan\EditPlanValidator;
 use App\Support\HyperFramesRuntime;
+use App\Support\MediaPath;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Schema;
 use RuntimeException;
@@ -864,28 +865,7 @@ class HyperFramesCompositionBuilder
 
     protected function resolveAudioPath(string $storagePath): ?string
     {
-        if (trim($storagePath) === '') {
-            return null;
-        }
-
-        $clean = str_replace(['public/', 'public\\'], '', $storagePath);
-
-        $candidates = [
-            $storagePath,
-            storage_path('app/'.$storagePath),
-            storage_path('app/public/'.$storagePath),
-            storage_path('app/public/'.$clean),
-            public_path($clean),
-            base_path($storagePath),
-        ];
-
-        foreach ($candidates as $cand) {
-            if (is_file($cand)) {
-                return $cand;
-            }
-        }
-
-        return null;
+        return MediaPath::existing($storagePath);
     }
 
     /**

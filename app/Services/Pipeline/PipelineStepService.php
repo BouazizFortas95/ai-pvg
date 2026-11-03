@@ -32,6 +32,7 @@ use App\Services\Rendering\EditPlan\EditPlanBuilder;
 use App\Services\Rendering\EditPlan\EditPlanValidator;
 use App\Services\Motion\MotionSelector;
 use App\Services\Production\ProductionManifestBuilder;
+use App\Services\Production\ProductionPreflight;
 use App\Services\RssImportService;
 use App\Services\VideoRenderingService;
 use App\Services\VoiceGenerationService;
@@ -583,6 +584,25 @@ class PipelineStepService
         config(['automation.publishing.enabled' => false]);
         $backend = (string) ($options['backend'] ?? 'hyperframes');
         $script = $this->resolveScript($options);
+
+        // The authoritative preflight gate. The Filament page also checks first
+        // for quick feedback, but the CLI and queued jobs only pass through here.
+        // Runs before the auto-approve below so a blocked render changes nothing.
+        if ($script !== null) {
+            $check = app(ProductionPreflight::class)->check([
+                'script_id' => $script->getKey(),
+                'cluster_id' => $options['cluster_id'] ?? null,
+                'run' => $run,
+                'aspect_ratio' => $options['aspect_ratio'] ?? '9:16',
+                'backend' => $backend,
+            ]);
+
+            if (! $check['ready_to_render']) {
+                throw new RuntimeException(
+                    "Step 6 blocked by production preflight:\n".ProductionPreflight::formatMissing($check)
+                );
+            }
+        }
 
         // Auto-approve script for production render if needed
         if ($script && $script->status !== VideoScriptStatus::Approved) {
